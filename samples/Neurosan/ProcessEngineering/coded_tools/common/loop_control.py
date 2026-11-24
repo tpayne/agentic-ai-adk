@@ -13,6 +13,7 @@ verdict is STOP, do not call Generator or Reviewer again this turn."
 """
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict, Union
 
@@ -25,6 +26,8 @@ from process_interface.loop_control import (
     reset_counter as reset_iteration_counter,
     load_approval_state,
 )
+
+logger = logging.getLogger("ProcessArchitect.LoopControl")
 
 
 class LoopControlCodedTool(CodedTool):
@@ -40,12 +43,18 @@ class LoopControlCodedTool(CodedTool):
         save_counter(loop_count)
 
         hard_stop = os.getenv("LOOP_HARD_STOP", "").strip().lower() in ("1", "true", "yes", "on")
+        approval_state = load_approval_state()
         decision = evaluate_loop_stop(
             loop_count=loop_count,
             max_iterations=max_iterations,
             hard_stop=hard_stop,
-            approval_state=load_approval_state(),
+            approval_state=approval_state,
             required_approvals=required,
+        )
+
+        logger.info(
+            "LoopControl: iteration=%d/%d verdict=%s (required=%s, approval_state=%s, reason=%s)",
+            loop_count, max_iterations, decision.verdict, required, approval_state, decision.reason,
         )
 
         if decision.verdict == "STOP":

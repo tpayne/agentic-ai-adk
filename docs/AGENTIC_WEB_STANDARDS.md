@@ -104,8 +104,8 @@ Shared infrastructure lives in `shared/process_toolkit/src/process_toolkit/agent
 ```
 shared/process_toolkit/src/process_toolkit/agentic_web/
 ├── __init__.py               # Re-exports of all capabilities, cards, and workflows
-├── agent_cards.py            # 32 machine-readable AgentCard definitions
-├── artifact_contracts.py     # 13 ArtifactContract specifications & envelope wrapper
+├── agent_cards.py            # 45 machine-readable AgentCard definitions
+├── artifact_contracts.py     # 16 ArtifactContract specifications & envelope wrapper
 ├── workflows.py              # 6 engineering lifecycle workflow definitions
 └── registry.py               # Manifest generator and capability search engine
 ```

@@ -252,16 +252,19 @@ def _safe_sleep_from_property(name: str, default: float = 0.25):
     # handling -- called before most tool responses to pace agent turns and
     # avoid bursts of near-simultaneous model/tool calls. The base duration
     # is configurable per-property (e.g. "modelSleep") in agentapp.properties.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
     pv = getProperty(name, default=default)
     try:
         base = float(pv)
     except Exception:
         base = default
+    if base <= 0:
+        return
     time.sleep(base + random.random() * 0.75)
 
 def _log_agent_activity(message: str):
     """Internal logging helper."""
-    _safe_sleep_from_property("modelSleep", default=0.25)
     logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
 def log_design_metadata(status: str = "in_progress", document_type: str = "") -> str:
@@ -3521,3 +3524,64 @@ class CleanedStdout:
 
     def close(self):
         self.file.close()
+
+
+def inspect_project_plan(schema_type: str = "portfolio_backlog") -> dict:
+    """Parses and returns structured quality and schedule metrics for the exported project plan (MSPDI XML).
+    schema_type is 'portfolio_backlog' or 'proposal_response'.
+    Returns structured metrics: start_date, finish_date, total_tasks, summary_tasks, leaf_tasks,
+    total_resources, total_assignments, total_cost, and phase breakdown with concurrency info.
+    """
+    from process_interface import paths as toolkit_paths
+    from process_interface.docgen.project_plan_export import (
+        PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+        PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+        parse_mspdi_project,
+    )
+
+    filename = (
+        PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+        if schema_type == "portfolio_backlog"
+        else PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+    )
+    plan_path = toolkit_paths.output_path(filename)
+    if not os.path.exists(plan_path):
+        return {
+            "status": "NOT_FOUND",
+            "message": f"No exported project plan found at {plan_path}. Run export_project_plan first.",
+        }
+
+    parsed = parse_mspdi_project(plan_path)
+    if not parsed:
+        return {"status": "ERROR", "message": f"Failed to parse MSPDI project plan at {plan_path}."}
+
+    tasks = parsed.get("tasks", [])
+    summary_tasks = [t for t in tasks if t.get("is_summary")]
+    leaf_tasks = [t for t in tasks if not t.get("is_summary")]
+    phases = [
+        {
+            "uid": t["uid"],
+            "name": t["name"],
+            "start": t["start"],
+            "finish": t["finish"],
+            "duration_hours": t.get("duration_hours"),
+            "predecessors": t.get("predecessor_uids", []),
+        }
+        for t in summary_tasks
+        if t.get("outline_level") == 2
+    ]
+
+    return {
+        "status": "OK",
+        "title": parsed.get("title"),
+        "start_date": parsed.get("start_date"),
+        "finish_date": parsed.get("finish_date"),
+        "total_tasks": len(tasks),
+        "summary_tasks": len(summary_tasks),
+        "leaf_tasks": len(leaf_tasks),
+        "total_resources": len(parsed.get("resources", [])),
+        "resources": [r["name"] for r in parsed.get("resources", [])],
+        "total_assignments": len(parsed.get("assignments", [])),
+        "total_cost": parsed.get("total_cost"),
+        "phases": phases,
+    }

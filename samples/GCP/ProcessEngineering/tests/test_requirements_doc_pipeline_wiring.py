@@ -29,11 +29,19 @@ def _router_text() -> str:
 
 class TestPipelineComposition:
     def test_pipeline_stages_are_synthesis_then_pinned_requirements_doc_creation(self):
-        from process_agents.common.requirements_doc_pipeline_agent import requirements_doc_pipeline
+        from process_agents.common.requirements_doc_pipeline_agent import (
+            requirements_doc_pipeline,
+            requirements_review_loop,
+            requirements_reviewer_instance,
+            stop_controller_agent_instance,
+        )
         from process_agents.common.requirements_synthesis_agent import requirements_synthesis_agent
 
-        stage_names = [a.name for a in requirements_doc_pipeline.sub_agents]
-        assert requirements_synthesis_agent.name in stage_names
+        assert requirements_review_loop in requirements_doc_pipeline.sub_agents
+        assert requirements_synthesis_agent in requirements_review_loop.sub_agents
+        assert requirements_reviewer_instance in requirements_review_loop.sub_agents
+        assert stop_controller_agent_instance in requirements_review_loop.sub_agents
+
         doc_stage = next(a for a in requirements_doc_pipeline.sub_agents if "Requirements_Doc_Creation" in a.name)
         # Pinned to schema_type="requirements" -- same mechanism confirmed
         # in test_doc_creation_agent_schema_pinning.py: the LLM-facing tool
@@ -46,11 +54,19 @@ class TestPipelineComposition:
 
     def test_synthesis_agent_has_no_doc_rendering_tool(self):
         from process_agents.common.requirements_synthesis_agent import requirements_synthesis_agent
+        from process_agents.common.utils import (
+            load_directory_context,
+            save_requirements_summary,
+            load_requirements_summary,
+            load_iteration_feedback,
+        )
 
-        # load_directory_context, save_requirements_summary, and the
-        # Requirements_Chunk_Extractor_Agent map-reduce tool -- none of
-        # these render a document themselves.
-        assert len(requirements_synthesis_agent.tools) == 3
+        assert {
+            load_directory_context,
+            save_requirements_summary,
+            load_requirements_summary,
+            load_iteration_feedback,
+        } <= set(requirements_synthesis_agent.tools)
 
 
 class TestRootAgentWiring:

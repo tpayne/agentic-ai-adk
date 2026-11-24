@@ -35,6 +35,12 @@ from process_interface.docgen.vsdx_export import (
 )
 from process_interface.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
 from process_interface.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
+from process_interface.docgen.project_plan_export import (
+    PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+    PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+    portfolio_backlog_project_plan_exists,
+    proposal_response_project_plan_exists,
+)
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
 
@@ -102,6 +108,32 @@ def safe_output_file_path(filename: str) -> Optional[str]:
     if not os.path.isfile(candidate):
         return None
     return candidate
+
+
+def _resolve_project_plan_target(normalized: str) -> Optional[str]:
+    """Disambiguates WHICH of the two exported project-plan files a
+    "project plan"/"ms project"/"projectlibre"/"gantt"/".mpp"-mentioning
+    target means, once resolve_artifact_target's own caller has already
+    confirmed one of those phrases is present. Checked ahead of the plain
+    "backlog"/"wsjf" substring check below -- "export the backlog as a
+    project plan" must resolve to the project-plan export, not the
+    Excel workbook the bare "backlog" branch would otherwise pick."""
+    if any(word in normalized for word in ("proposal", "rtp", "response")):
+        return PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME if proposal_response_project_plan_exists() else None
+    if any(word in normalized for word in ("backlog", "portfolio")):
+        return PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME if portfolio_backlog_project_plan_exists() else None
+
+    # No domain named ("download the project plan") -- resolve only if
+    # exactly one of the two has actually been exported; two candidates
+    # with no disambiguating word is a genuinely ambiguous request, not a
+    # guess this function should make.
+    present = [
+        filename for filename, exists in (
+            (PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME, portfolio_backlog_project_plan_exists()),
+            (PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME, proposal_response_project_plan_exists()),
+        ) if exists
+    ]
+    return present[0] if len(present) == 1 else None
 
 
 def _resolve_vsdx_target(normalized: str) -> Optional[str]:
@@ -180,6 +212,14 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     normalized = (target or "").strip().lower()
     if normalized and any(word in normalized for word in ("iac", "terraform", "cloudformation", "pulumi", "infrastructure", "infra")):
         return IAC_ZIP_FILENAME if iac_zip_exists() else None
+    # Checked BEFORE the plain "backlog"/"wsjf" check below -- "export the
+    # backlog as a project plan" must resolve to the project-plan export,
+    # not the Excel workbook, even though "backlog" is also present.
+    if normalized and any(
+        phrase in normalized for phrase in
+        ("project plan", "ms project", "microsoft project", "projectlibre", "gantt", ".mpp")
+    ):
+        return _resolve_project_plan_target(normalized)
     if normalized and any(word in normalized for word in ("backlog", "wsjf", PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)):
         return (
             PORTFOLIO_BACKLOG_WORKBOOK_FILENAME

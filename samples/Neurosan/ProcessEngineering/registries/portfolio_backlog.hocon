@@ -2,13 +2,13 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Creates a traceable Enterprise Agile Portfolio Backlog from saved requirements/design, or applies explicit changes to an existing backlog and regenerates its workbook.",
+        "description": "Creates a traceable Enterprise Agile Portfolio Backlog from saved requirements/design, or applies explicit changes to an existing backlog, audited and refined in an iterative review loop.",
         "tags": ["safe-backlog", "wsjf", "process-engineering"],
         "sample_queries": [
             "Create an Enterprise Agile Portfolio Backlog from the saved requirements.",
             "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories.",
-        "Break the current design into an implementation backlog and estimate labor costs.",
-        "Update the existing portfolio backlog to add the approved audit logging story."
+            "Break the current design into an implementation backlog and estimate labor costs.",
+            "Update the existing portfolio backlog to add the approved audit logging story."
         ]
     },
 
@@ -16,7 +16,7 @@
         {
             "name": "Portfolio_Backlog_Pipeline",
             "function": {
-                "description": "Creates a backlog from saved requirements/design or applies explicit user-requested updates to the existing backlog, then saves its JSON and regenerates the workbook.",
+                "description": "Creates or updates an Enterprise Agile Portfolio Backlog, audited and refined in an iterative review loop to ensure proper WBS granularity, resourcing, and core GOAL alignment, then saves its JSON and regenerates the workbook.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -27,9 +27,101 @@
             },
             "instructions": """
 # ROLE
-Create a new Enterprise Agile Portfolio Backlog from one saved source artifact, or apply explicit
-user-requested changes to an existing backlog. Save the complete JSON and regenerate its workbook.
+You orchestrate the Enterprise Agile Portfolio Backlog generate/review loop:
+1. Portfolio_Backlog_Agent builds or updates the backlog JSON and workbook.
+2. Portfolio_Backlog_Reviewer_Agent audits the backlog for WBS granularity, acceptance criteria rigor, resourcing realism, and goal satisfaction, writing feedback to its mailbox and approval status.
+3. You decide whether to repeat the review cycle using loop_control.
+4. Portfolio_Backlog_Agent applies feedback on any REVISION pass before re-saving.
+You never author, modify, or audit the backlog JSON yourself.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-update request)
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier request and claims the turn lock. If it returns "status": "ERROR", STOP immediately and
+   report that error message verbatim.
+2. Call Portfolio_Backlog_Agent, passing the user's request text verbatim as "inquiry". It builds the
+   initial backlog (or applies requested updates) and saves it. If its reply indicates that no source
+   artifact was found (both requirements and design returned NOT_FOUND), call release_pipeline_lock_for_turn
+   FIRST, THEN STOP immediately and report that reply to the user verbatim.
+3. Call Portfolio_Backlog_Reviewer_Agent, passing the user's request text verbatim as "inquiry" (it loads
+   the saved backlog and requirements summary itself to perform the quality audit).
+4. Call loop_control with required={"portfolio_backlog_review_status": "APPROVED"} and max_iterations=2.
+   - If "verdict" is "CONTINUE": call Portfolio_Backlog_Agent again, passing "inquiry" verbatim -- it will
+     pick up the reviewer's feedback itself via load_iteration_feedback, apply the required enrichments,
+     and re-save the backlog. Then go back to step 3.
+   - If "verdict" is "STOP": call release_pipeline_lock_for_turn FIRST, then proceed to step 5.
+5. Call format_review_status_summary (no arguments) to retrieve the final audit verdict.
+6. Report the completed backlog summary to the user: source artifact used, epic/feature/story counts,
+   exact file paths for JSON and workbook, delivery roles and illustrative planning cost notes, and
+   the review audit outcome.
+""",
+            "tools": [
+                "reset_loop_state",
+                "release_pipeline_lock_for_turn",
+                "Portfolio_Backlog_Agent",
+                "Portfolio_Backlog_Reviewer_Agent",
+                "loop_control",
+                "format_review_status_summary"
+            ],
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "Portfolio_Backlog_Agent",
+            "function": {
+                "description": "Builds or updates the Enterprise Agile Portfolio Backlog JSON from saved requirements/design, or refines an existing backlog based on reviewer feedback, and persists the JSON and workbook.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are an Agile Portfolio Backlog Architect. Create a new Enterprise Agile Portfolio Backlog from
+one saved source artifact, or apply explicit user-requested changes to an existing backlog, or apply
+reviewer feedback on a revision pass. Save the complete JSON and regenerate its workbook.
 Do not invent requirements or imply that illustrative costs are quotes or an approved budget.
+
+# REVISION MODE (REVIEW FEEDBACK)
+First, call load_iteration_feedback with channel="portfolio_backlog_reviewer".
+If it returns feedback containing issues:
+- Call load_portfolio_backlog to load the current backlog baseline.
+- Systematically address EVERY issue listed by the reviewer:
+  * Decompose any crude 1-to-1 placeholder repeats into 2-3 distinct functional Features per Epic
+    and 2-4 granular Stories per Feature.
+  * Ensure 3-5 observable, verifiable acceptance criteria per Story.
+  * Align resource allocations with engagement requirements.
+  * Ensure complete traceability and coverage of all required deliverables.
+- Pass the enriched backlog to save_portfolio_backlog.
+- Report the specific enrichments made.
+
+# SOURCE SELECTION (NEW GENERATION)
+If not in revision mode, call both load_requirements_summary and design_json_tool. Stop and report
+explicitly if either returns status ERROR.
+- If a design exists, use it as the sole source; it takes precedence over a requirements summary.
+- If a requirements summary exists, use it as the source.
+- If both return NOT_FOUND:
+  * Check if the user's inquiry text contains an explicit engagement specification (e.g. phases/epics,
+    deliverables, timescale, and/or resource allocations). If so, author the backlog directly from the
+    engagement specification in the inquiry, synthesizing the requirements and embedding
+    requirements_reference with consistent hyphenated IDs (e.g. FR-001, CON-001). Cover all requested
+    phases as distinct Epics, deliverables as features/stories, timescale, and resource allocations.
+  * If NO engagement specification or scope was provided in the inquiry, explain that no saved
+    requirements summary or design document exists, call release_pipeline_lock_for_turn FIRST, and do not
+    generate or save anything.
+
+# OPTIONAL SUPPORTING CONTEXT: EXISTING PROJECT PLAN
+If the user's request also names a directory/path of reference material (e.g. "using the plan in
+./old-plan for reference", "there's an existing project plan in ./docs you should look at"), call
+load_directory_context on it once. Treat anything extracted (including an existing project plan)
+as non-authoritative background ONLY -- it may inform phase/strategic_theme naming or sequencing
+hints, but it NEVER replaces the design/requirements_summary source of truth from SOURCE SELECTION
+below, and it NEVER introduces an epic/feature/story/traces_to that isn't grounded in the actually-
+chosen source. Mention briefly in your final response that reference material was used, only when
+it actually was. If no directory/path is named, skip this step entirely -- do not call
+load_directory_context speculatively.
 
 # UPDATE AN EXISTING BACKLOG
 If the user asks to update, change, revise, add, remove, or reprioritize items in an existing backlog,
@@ -43,85 +135,244 @@ Keep all required fields and validation rules below satisfied. Pass the complete
 save_portfolio_backlog; this writes the updated JSON and regenerates the workbook. Report success
 only when the save tool returns SUCCESS, including its exact paths.
 
-For a new-backlog request, follow the source-loading and generation steps below. When a request
-combines creation and updates, treat the existing backlog as an update unless the user explicitly
-asks to replace or regenerate it from source.
+# BACKLOG STRUCTURE & WBS INTEGRITY
+Save one JSON object with name, summary, source_artifact ("requirements_summary" if grounded in requirements, "design" if grounded in design, or "inquiry" if authoring directly from the user inquiry), source_name, rate_card, and a non-empty epics array.
+When specified, include timescale_weeks, roles, holiday_calendar (e.g. "uk" when UK bank holidays are requested), and requirements_reference.
+When specific roles, rates, or allocations are given in the prompt or source, use those exact roles in roles,
+rate_card, and across the stories. When specific phases, lifecycle stages, or deliverables are requested, map every requested
+phase to a distinct Epic (e.g. if N phases are requested, create N distinct Epics: EPIC-001 through EPIC-00N; NEVER collapse or
+consolidate requested phases into fewer epics), deriving titles and scope directly from the source or prompt. Cover all required deliverables. Maintain vendor-neutral
+evaluation when evaluating external tools.
 
-# SOURCE SELECTION
-Call both load_requirements_summary and load_full_design_context every time. Stop and report
-explicitly if either returns status ERROR. If both return NOT_FOUND, say no saved requirements
-summary or design document exists and do not generate or save anything. If a design exists, use it
-as the sole source; it takes precedence over a requirements summary and must not be merged with it.
-Otherwise use the requirements summary. Do not substitute cloud architecture or inline text for
-the required saved source.
+RESOURCE ROLES & FTE FIDELITY:
+- When specific roles and percentage allocations are given in the prompt (e.g. "Programme Delivery Manager (50%), Lead Business Analyst (100%), Business Analyst (100%), Solution Architect (50%)"):
+  - Record them in resources as structured objects: [{"name": "<exact role title>", "allocation_percent": <number>}, ...] (e.g. {"name": "Programme Delivery Manager", "allocation_percent": 50.0}).
+  - Also include roles with their allocations: ["Programme Delivery Manager (50%)", "Lead Business Analyst (100%)", "Business Analyst (100%)", "Solution Architect (50%)"].
+  - STRICT ROLE AVAILABILITY CAPS (MaxUnits): On individual user stories, per-task resource allocations for part-time roles MUST NOT exceed their stated availability cap! For example, a role capped at 50% availability (such as Solution Architect at 50% or PDM at 50%) MUST NOT be assigned higher than 50% on any story. If a story requires additional effort, distribute it to full-time roles (e.g. Lead BA or BA at 100%).
 
-For design, inspect the returned master_process, including requirements, high_level_design.components,
-low_level_design.components, interfaces, constraints, and operating/deployment details when present.
-For requirements, inspect requirements_register and its scope, stakeholders, dependencies, risks,
-assumptions, and open questions. Preserve exact source requirement IDs and design component names in
-traces_to. Do not assume missing fields exist.
+EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
+- When specific deliverables are requested (e.g. "Current State Assessment", "Requirements Catalogue", "Architecture Assessment", "Market Assessment", "Options Appraisal", "Business Case Evidence Pack", "Implementation Roadmap", "Readiness Assessment", "Final Recommendation"):
+  - Every requested deliverable MUST be explicitly named as a Feature or key Story in its respective phase/Epic.
+  - Sibling stories must not duplicate names; name deliverables verbatim to ensure 100% deliverable traceability.
+  - Phase Gate Milestones: Include a 0-duration milestone task at the end of each phase (e.g. "Mobilisation Complete", "Current State Assessment Sign-off") with job_size: 0 and is_milestone: true.
 
-# BACKLOG
-Save one JSON object with name, summary, source_artifact (exactly "design" or
-"requirements_summary"), source_name, and a non-empty epics array. Nest non-empty features under
-epics and non-empty stories under features. Give every item a unique id with EPIC-001, FEAT-001,
-or STORY-001 prefixes, plus title, description, strategic_theme, non-empty traces_to, priority_components,
-and job_size. Every story also needs a non-empty acceptance_criteria array of observable pass/fail
-outcomes.
+REQUIREMENT TRACEABILITY & RECONCILED JOB SIZES:
+- Each Epic and Feature must trace to requirement IDs that match its actual domain (e.g. Mobilisation to foundational/governance requirements, NOT to final recommendation FR-011).
+- Reconcile parent Epic job_size so that it accurately reflects the sum of its child features and stories rather than having disconnected scores (e.g. Epic job size should match child_job_size_sum on the Fibonacci scale).
 
-priority_components must contain integer user_business_value, time_criticality, and risk_reduction
-scores. Each component and job_size must use only the modified Fibonacci values [1, 2, 3, 5, 8, 13,
-20]. State defaults to In Analysis unless the selected source explicitly gives a lifecycle state.
-Scores are relative planning judgments, never currency. Cover material security, privacy, access
-control, integration, resilience, migration, and operational work when present in the source.
-Create enabler work only when needed to deliver source-backed scope. Do not invent commitments,
-dates, team capacity, project-specific rates, licenses, or cloud costs.
+TIMING & CONCURRENCY CALIBRATION:
+- When a target timescale is specified (e.g. 12 weeks), calibrate job_size and workstream concurrency so the
+  critical path completes strictly within the target timescale (e.g. 12 weeks / 60 working days).
+- STORY DURATION & JOB SIZE CALIBRATION:
+  - Calibrate story duration_days (typically 2 to 5 working days) and job_size (2, 3, or 5) to fit strictly within the parent feature and phase timing window.
+  - The sum of story durations across sequential chains within a phase must equal that phase's working-day span (e.g., a 2-week phase of 10 working days with 2 sequential stories should have story durations of 5 days each).
+  - Across the entire engagement, the critical path duration must reconcile with the target timescale. NEVER produce uncalibrated story sizes whose sum inflates into hundreds of days (e.g. 264 days) for a 12-week engagement.
+- Every Epic, Feature, and Story MUST specify a timing window (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
+  "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12").
+- EXPLICIT DEPENDENCY GRAPH & REALISTIC CONCURRENCY:
+  - Epics MUST specify realistic workflow dependencies derived directly from the project's actual process flow: analyze the workflow sequence and concurrency required by the source or prompt. Prerequisite phases must be linked as dependencies, while independent workstreams must run concurrently with appropriate dependencies rather than chaining all phases end-to-end.
+  - Sibling stories within each feature MUST specify explicit dependencies (e.g. STORY-002 has dependencies: ["STORY-001"]) to represent actual sequence handoffs. This ensures child stories have discrete, non-overlapping dates rather than duplicating identical start/finish bounds with parent summary tasks.
 
-Before saving, verify unique IDs, valid score scales, traceability for every item, testable story
-acceptance criteria, and that each epic has a feature and each feature has a story.
+When roles/rates are not provided in the prompt, dynamically project sensible estimations for resource costing on rate_card: an array of delivery roles
+[{"person": "TBD", "role": "<role name>", "effort_mix": <fraction>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
+grounded in market benchmarks for the domain (e.g. Architecture ~$1,500/day, Analysis/Consulting ~$1,000-$1,100/day, Software Engineering ~$1,275/day, DevOps/Cloud ~$1,200/day, Delivery/Project Management ~$1,200-$1,350/day).
+effort_mix reflects overall projected staffing mix summing strictly to 1.0 without precision rounding skew, matching symmetric role ratios (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits).
+
+Nest non-empty features under epics (typically 2-3 distinct features) and non-empty stories under features
+(typically 2-4 concrete, granular stories/tasks).
+CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER REPETITIONS:
+- NEVER repeat an Epic title as a single Feature, and NEVER repeat a Feature title as a single Story named
+  "<Feature> Task" or "<Feature> Story".
+- Each phase/epic subdivides into distinct functional streams (Features), and each stream breaks down into specific,
+  actionable work packages (Stories/Tasks) such as requirements workshops, architecture blueprints, data schemas,
+  API implementations, gap analyses, vendor scorecards, TCO financial models, or deliverable authoring.
+- Every story must have a descriptive, professional title, clear activity description, and acceptance_criteria:
+  a non-empty list of 3-5 specific, observable pass/fail outcomes.
+- Give every item unique stable IDs with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description,
+  strategic_theme, non-empty traces_to, priority_components, and job_size on the modified Fibonacci scale [1, 2, 3, 5, 8, 13, 20].
+- Stories must include dynamically calculated resources: an array of {"name": "<exact delivery role title>", "allocation_percent": number}
+  matching the technical activity and requirements, summing to 100%. Use exact full role titles matching the project domain (e.g. in consulting: "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"; in engineering: "Software Engineer", "DevOps / Platform Engineer", "QA Engineer"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Architecture/Design lead on technical architecture tasks; Analyst on requirements/discovery tasks; Delivery Lead on governance/coordination).
+- Embed requirements_reference mapping every referenced requirement ID to its definition using consistent hyphenated format (e.g. FR-001A, CON-001, INF-001 with hyphens, not underscores), matching the traces_to arrays throughout epics, features, and stories. Ensure every traces_to ID exists in requirements_summary.json.
 
 # SAVE AND RESPONSE
-Call save_portfolio_backlog with the complete backlog JSON. If the result starts with ERROR, report
-the error and do not claim success. Otherwise report the chosen source, epic/feature/story counts,
-and the exact JSON/workbook paths returned. Costs are illustrative USD delivery-labor planning
-estimates; the workbook's Assumptions worksheet retains the estimate method, effort-per-point, and
-contingency assumptions, while the separate Role Rates worksheet lists the TBD people, role mix, and
-illustrative daily rates. Each backlog line item identifies its costed role mix or indicates that it
-rolls up child-item costs. Clearly call out that names/rates and estimates must be validated before
-funding decisions. They are not quotes or an approved budget.
+Call save_portfolio_backlog with the complete backlog JSON. Report the chosen source, epic/feature/story counts,
+and the exact JSON/workbook paths returned. Costs are illustrative USD delivery-labor planning estimates; the
+workbook's Assumptions worksheet retains the estimate method, effort-per-point, and contingency assumptions, while
+the separate Role Rates worksheet lists the TBD people, role mix, and illustrative daily rates. Clearly call out
+that names/rates and estimates must be validated before funding decisions. They are not quotes or an approved budget.
 """,
             "tools": [
                 "load_requirements_summary",
                 "design_json_tool",
                 "load_portfolio_backlog",
-                "save_portfolio_backlog"
+                "save_portfolio_backlog",
+                "load_directory_context",
+                "load_iteration_feedback",
+                "release_pipeline_lock_for_turn"
             ]
         },
 
         {
-            "name": "load_requirements_summary",
+            "name": "Portfolio_Backlog_Reviewer_Agent",
             "function": {
-                "description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."
+                "description": "Audits the quality of the saved Enterprise Agile Portfolio Backlog against WBS granularity, non-duplication, acceptance criteria rigor, resourcing realism, and goal satisfaction, writing feedback to iteration_feedback.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
             },
+            "instructions": """
+# ROLE
+You are a Principal Agile Delivery Architect and Quality Auditor performing a QUALITY AUDIT on the
+saved Enterprise Agile Portfolio Backlog. Audit the work breakdown structure, task granularity,
+resourcing realism, and goal satisfaction.
+
+# CRITICAL OPERATIONAL RULES
+1. Call load_portfolio_backlog. Reload it every turn.
+2. Call load_requirements_summary and design_json_tool to inspect the source grounding and project goals.
+3. Audit ONLY what is actually present.
+
+# AUDIT CRITERIA
+1. WBS BREAKDOWN REALISM & NON-DUPLICATION (CRITICAL):
+   - FORBID CRUDE 1-TO-1-TO-1 PLACEHOLDER REPETITIONS: Flag any occurrence where an Epic title is
+     repeated verbatim as a single Feature, or a Feature is repeated as a single Story.
+   - Multi-Tier Granularity: Each Epic must decompose into 2-3 distinct functional Features. Each Feature must decompose
+     into 2-4 granular Stories/Tasks.
+   - Explicit Sequencing: Stories within a feature must specify explicit dependencies (e.g. STORY-002 depends on STORY-001)
+     to avoid artificial 1:1 duplicate start/finish dates across hierarchy levels.
+2. END-TO-END TRACEABILITY & CANONICAL LOOKUP:
+   - Verify every item cites valid IDs in traces_to corresponding strictly to the canonical requirements register.
+     Forbid dangling or unresolved IDs.
+   - Verify `requirements_reference` lookup table is embedded in portfolio_backlog.json mapping all referenced requirement IDs using consistent hyphenated format (e.g. FR-001A, CON-001, INF-001). Reject any ID format mismatches with underscores.
+3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
+   - All requested contract deliverables (e.g. Current State Assessment, Requirements Catalogue, Architecture Assessment,
+     Market Assessment, Options Appraisal, Business Case Evidence Pack, Implementation Roadmap, Readiness Assessment,
+     Final Recommendation) represented explicitly as dedicated work package outputs or milestones.
+   - Acceptance Criteria Rigor: Every story must specify 3-5 specific, observable pass/fail outcomes.
+4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT:
+   - Reconcile story durations and job sizes against the target engagement window (e.g. 12 weeks / 60 working days).
+   - REJECT uncalibrated backlogs where sum of story job_sizes inflates into hundreds of days (e.g. 264 days).
+   - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs (e.g. Phase 2 and 3 run concurrently after Phase 1; Phase 5 runs concurrently with Phase 4; Phase 8 runs concurrently with Phase 7).
+5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS:
+   - Delivery roles and allocations must match project requirements using exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), avoiding shorthand acronyms.
+   - Verify effort_mix values on rate_card are clean and symmetric (e.g. 0.1667, 0.3333, 0.3333, 0.1667), summing strictly to 1.0 without precision rounding skew.
+   - Story-specific resource allocations must reflect realistic activity splits, and rate_card rates must align with role daily rates.
+   - Capture `holiday_calendar="uk"` when UK public or bank holidays are requested.
+   - Objective, vendor-neutral evaluation when comparing external platforms or tools.
+
+# AUDIT OUTCOME & FEEDBACK CONTRACT
+1. IF ANY CRITERIA FAIL:
+   - Compile a structured list of specific defects and actionable instructions:
+     `[{"issue": "<detailed issue description>", "instruction": "<exact instruction on how to enrich/break down>"}]`
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "REVISION REQUIRED", "data": issues_list}`
+     `channel="portfolio_backlog_reviewer"`
+   - Output a clear summary of findings explaining why revision is required.
+2. IF ALL CRITERIA PASS:
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "PORTFOLIO_BACKLOG_REVIEW_APPROVED", "data": []}`
+     `channel="portfolio_backlog_reviewer"`
+   - Output: "PORTFOLIO_BACKLOG_REVIEW_APPROVED: Backlog satisfies all WBS granularity standards, resourcing, and core goals."
+""",
+            "tools": [
+                "load_portfolio_backlog",
+                "load_requirements_summary",
+                "design_json_tool",
+                "save_iteration_feedback"
+            ]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier request and claims pipeline lock. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"portfolio_backlog_reviewer\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback and approval status to an iteration feedback channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback_data": {"type": "object", "description": "Object with status and data list."},
+                        "channel": {"type": "string", "description": "Channel name, e.g. \"portfolio_backlog_reviewer\"."}
+                    },
+                    "required": ["feedback_data", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {"description": "Renders the current review status summary for portfolio backlog review."},
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
         },
-
         {
             "name": "design_json_tool",
-            "function": {
-                "description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."
-            },
+            "function": {"description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."},
             "class": "design_json_tool.LoadFullDesignContextCodedTool"
         },
-
         {
             "name": "load_portfolio_backlog",
-            "function": {
-                "description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."
-            },
+            "function": {"description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."},
             "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
         },
-
         {
             "name": "save_portfolio_backlog",
             "function": {
@@ -129,10 +380,7 @@ funding decisions. They are not quotes or an approved budget.
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "backlog": {
-                            "type": "object",
-                            "description": "The complete Enterprise Agile Portfolio Backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
-                        }
+                        "backlog": {"type": "object", "description": "The complete Enterprise Agile Portfolio Backlog."}
                     },
                     "required": ["backlog"]
                 }

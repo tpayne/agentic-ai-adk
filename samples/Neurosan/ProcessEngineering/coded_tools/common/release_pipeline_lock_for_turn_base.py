@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
 from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
+
+logger = logging.getLogger("ProcessArchitect.ReleasePipelineLock")
 
 
 class ReleasePipelineLockForTurnCodedTool(CodedTool):
@@ -37,7 +40,10 @@ class ReleasePipelineLockForTurnCodedTool(CodedTool):
     though nothing is actually still running."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None) if isinstance(sly_data, dict) else None
+        if isinstance(sly_data, dict):
+            sly_data.pop("_pipeline_lock_turn_id", None)
+        logger.info("ReleasePipelineLockForTurn: invoking with token=%s from sly_data", token)
         stop_pipeline_lock_heartbeat(token)
         release_pipeline_lock(token)
         return {"status": "OK"}

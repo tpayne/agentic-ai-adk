@@ -41,6 +41,7 @@ from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from .test_specification_pipeline_agent import test_specification_pipeline
 from .portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline
 from .portfolio_backlog_consultant_agent import portfolio_backlog_consultant_agent
+from .portfolio_backlog_reviewer_agent import portfolio_backlog_reviewer_agent
 from .togaf_pipeline_agent import togaf_pipeline
 from ..itsm.create_itsm_agent import full_itsm_pipeline
 from ..itsm.update_itsm_agent import update_itsm_pipeline
@@ -65,6 +66,9 @@ from ..design.design_simulation_agent import design_simulation_query_agent
 from ..process.subprocess_driver_agent import SubprocessDriverAgent
 from ..process.update_process_agent import update_design_pipeline
 from .visio_export_agent import visio_export_agent, cloudarch_visio_export_agent
+from .project_plan_export_agent import project_plan_export_agent
+from .project_plan_reviewer_agent import project_plan_reviewer_agent
+from .project_plan_pipeline_agent import project_plan_pipeline
 
 from .utils_agent import (
     mute_agent, 

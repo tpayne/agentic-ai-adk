@@ -90,15 +90,18 @@ WORKFLOW_DEFINITIONS: Dict[str, WorkflowDefinition] = {
     "portfolio_planning_lifecycle": WorkflowDefinition(
         workflow="portfolio_planning_lifecycle",
         name="Enterprise Agile Portfolio Planning Lifecycle",
-        description="Agile portfolio breakdown lifecycle decomposing requirements and technical designs into Epics, Features, and Stories with WSJF scoring and Excel workbook output.",
+        description="Agile portfolio breakdown lifecycle decomposing requirements and technical designs into Epics, Features, and Stories with WSJF scoring, quality review, and project plan export.",
         version="1.0.0",
         steps=[
             "requirements_summary",
             "design",
             "portfolio_backlog",
+            "portfolio_backlog_reviewer",
+            "project_plan_export",
+            "project_plan_reviewer",
         ],
         required_inputs=["requirements_summary", "high_level_design"],
-        produced_artifacts=["requirements_summary", "high_level_design", "portfolio_backlog"],
+        produced_artifacts=["requirements_summary", "high_level_design", "portfolio_backlog", "project_plan"],
     ),
     "itsm_management_lifecycle": WorkflowDefinition(
         workflow="itsm_management_lifecycle",

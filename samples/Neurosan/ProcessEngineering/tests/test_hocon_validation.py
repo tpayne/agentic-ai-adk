@@ -23,6 +23,7 @@ PORTED_NETWORKS = [
     "registries/test_specification.hocon",
     "registries/portfolio_backlog.hocon",
     "registries/portfolio_backlog_consultant.hocon",
+    "registries/portfolio_backlog_reviewer.hocon",
     "registries/test_case_chunk_generator.hocon",
     "registries/test_consultant.hocon",
     "registries/test_reviewer.hocon",
@@ -63,6 +64,8 @@ PORTED_NETWORKS = [
     "registries/itsm_reviewer.hocon",
     "registries/itsm_scenario_tester.hocon",
     "registries/itsm_simulation_query.hocon",
+    "registries/project_plan_export.hocon",
+    "registries/project_plan_reviewer.hocon",
     "registries/process_architect.hocon",
 ]
 

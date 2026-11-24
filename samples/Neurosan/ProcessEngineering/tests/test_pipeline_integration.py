@@ -234,3 +234,61 @@ def test_cloudarch_pipeline_releases_its_lock_only_once_the_loop_genuinely_stops
     assert token not in run_lock._heartbeats  # stopped alongside the release on STOP
 
     acquire_pipeline_lock("a different pipeline")  # must not raise -- released on STOP
+
+
+def test_portfolio_backlog_pipeline_releases_its_lock_on_loop_control_stop():
+    from coded_tools.portfolio_backlog.reset_loop_state_tool import ResetLoopStateCodedTool as PortfolioBacklogReset
+    from coded_tools.portfolio_backlog.loop_control_tool import LoopControlCodedTool as PortfolioBacklogLoopControl
+    from coded_tools.portfolio_backlog.save_iteration_feedback_tool import SaveIterationFeedbackCodedTool as PortfolioBacklogSaveFeedback
+
+    sly_data = {}
+    assert PortfolioBacklogReset().invoke({}, sly_data)["status"] == "OK"
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    assert token
+    assert token in run_lock._heartbeats
+
+    # Mid-loop continue must keep lock
+    continuing = PortfolioBacklogLoopControl().invoke(
+        {"required": {"portfolio_backlog_review_status": "APPROVED"}, "max_iterations": 2}, sly_data
+    )
+    assert continuing["verdict"] == "CONTINUE"
+    assert token in run_lock._heartbeats
+
+    # Approve and STOP must release lock and stop heartbeat
+    PortfolioBacklogSaveFeedback().invoke(
+        {"feedback": {"status": "PORTFOLIO_BACKLOG_REVIEW_APPROVED", "data": []}, "channel": "portfolio_backlog_reviewer"},
+        sly_data
+    )
+    stopped = PortfolioBacklogLoopControl().invoke(
+        {"required": {"portfolio_backlog_review_status": "APPROVED"}, "max_iterations": 2}, sly_data
+    )
+    assert stopped["verdict"] == "STOP"
+    assert token not in run_lock._heartbeats
+    assert PIPELINE_LOCK_TOKEN_KEY not in sly_data
+    acquire_pipeline_lock("a different pipeline")  # must not raise
+
+
+def test_project_plan_export_pipeline_releases_its_lock_on_loop_control_stop():
+    from coded_tools.project_plan_export.reset_loop_state_tool import ResetLoopStateCodedTool as ProjectPlanExportReset
+    from coded_tools.project_plan_export.loop_control_tool import LoopControlCodedTool as ProjectPlanExportLoopControl
+    from coded_tools.project_plan_export.save_iteration_feedback_tool import SaveIterationFeedbackCodedTool as ProjectPlanExportSaveFeedback
+
+    sly_data = {}
+    assert ProjectPlanExportReset().invoke({}, sly_data)["status"] == "OK"
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    assert token
+    assert token in run_lock._heartbeats
+
+    # Approve and STOP must release lock
+    ProjectPlanExportSaveFeedback().invoke(
+        {"feedback": {"status": "PROJECT_PLAN_REVIEW_APPROVED", "data": []}, "channel": "project_plan_reviewer"},
+        sly_data
+    )
+    stopped = ProjectPlanExportLoopControl().invoke(
+        {"required": {"project_plan_review_status": "APPROVED"}, "max_iterations": 2}, sly_data
+    )
+    assert stopped["verdict"] == "STOP"
+    assert token not in run_lock._heartbeats
+    assert PIPELINE_LOCK_TOKEN_KEY not in sly_data
+    acquire_pipeline_lock("a different pipeline")  # must not raise
+

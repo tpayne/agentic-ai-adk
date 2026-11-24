@@ -1,0 +1,143 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own
+# Project_Plan_Reviewer_Agent. Audits the QUALITY, schedule compliance, concurrency,
+# and resourcing of a previously-exported Microsoft Project (MSPDI XML) project plan.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Audits a previously-exported Project Plan (MSPDI XML) for schedule compliance, zero calendar overrun, concurrency, resourcing allocations, and goal alignment.",
+        "tags": ["project-plan", "mspdi", "schedule-audit", "quality-audit", "process-engineering-port"],
+        "sample_queries": [
+            "Audit the project plan for schedule compliance and overrun.",
+            "Review the project plan XML to ensure it finishes within the specified timescale.",
+            "Check the project plan concurrency and resource allocations."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Project_Plan_Reviewer_Agent",
+
+            "function": {
+                "description": """
+I audit the QUALITY of a previously-exported Project Plan (MSPDI XML) and companion PERT/CPM chart.
+I check for strict timescale compliance (zero calendar overrun against the requested timescale),
+concurrency (ensuring independent workstreams execute in parallel rather than sequential cascade),
+calendar and holiday handling (UK bank holidays, weekends non-working), resource allocations
+(checking roles, MaxUnits, and assignment Units matching requested percentages), and deliverable coverage
+meeting the project GOAL.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request to review/audit the project plan for quality and schedule compliance."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Principal Project Controls and Schedule Auditor. Your mission is to audit an exported
+Microsoft Project (MSPDI XML) project plan and companion PERT/CPM chart for schedule compliance,
+concurrency, calendar integrity, resource allocations, and alignment with the overarching project GOAL.
+
+# CRITICAL OPERATIONAL RULES
+1. Your first action MUST be to call inspect_project_plan.
+2. If it returns {"status": "NOT_FOUND"}, reply:
+   "I cannot see any exported project plan yet. Please export one first (e.g. 'export the portfolio
+   backlog as a project plan') before I can audit it."
+   Then stop.
+3. Also inspect the source artifact by calling load_portfolio_backlog or load_requirements_summary
+   to understand the intended timescale and staffing model.
+
+# UNIVERSAL PROJECT-AGNOSTIC AUDIT PRINCIPLES
+The system must be able to audit ANY project type, domain, or request (custom software development,
+cloud migrations, data platforms, discovery consulting, infrastructure rollout, procurement, etc.).
+NEVER hardcode or assume fixed phases, deliverables, role titles, or timescales from any sample prompt.
+Derive evaluation criteria dynamically from the loaded requirements summary, backlog, or user inquiry.
+
+# AUDIT CRITERIA
+
+## 1. SCHEDULE DURATION VS. EFFORT / CAPACITY ALIGNMENT (ZERO OVERRUN)
+- Ensure elapsed calendar dates, working-day durations, non-working days (weekends and designated holidays),
+  and sum-of-effort estimates reconcile against the target timescale rather than overrunning due to uncalibrated sizing.
+- Strict Timescale Compliance: If the engagement specifies a target timescale (in weeks or working days),
+  the finish date MUST NOT exceed the target timescale from the start date. Overrun is an automatic failure.
+- Verify holiday handling: If a holiday calendar (e.g. UK bank holidays) was requested, verify that public holidays
+  are properly scheduled as non-working exceptions without unmanaged schedule drift.
+
+## 2. PARALLELISM OVER EXCESSIVE SEQUENTIAL CHAINING
+- Avoid chaining every phase and activity strictly end-to-end when discovery, analysis, or drafting workstreams can run concurrently.
+- Concurrent Execution: Phases or workstreams that do not strictly depend on prior outputs MUST run in parallel
+  with appropriate lead/lag dependencies to respect the project timescale.
+- No Pure Linear Cascade: Flag pure sequential 'waterfall' cascading of all phases where concurrency was feasible.
+
+## 3. CONSISTENT ROLE ALLOCATIONS ACROSS ARTIFACTS
+- Keep role availability caps (MaxUnits), per-task resource splits, and phase/story staffing consistent between
+  backlog definitions, resource tables, and schedule assignments instead of applying uniform or contradictory allocations.
+- Check resource MaxUnits and assignment Units: verify that allocation percentages match requested staffing models.
+- Flag missing resources, generic unassigned tasks, or allocation mismatches.
+
+## 4. SINGLE SOURCE OF TRUTH FOR RATES AND COSTS
+- Align unit/daily rates, effort calculations, and cost rollups across rate cards, spreadsheets, and project XML StandardRates.
+
+## 5. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION
+- Represent required deliverables and decision gates explicitly as trackable tasks, milestones (duration 0, `<Milestone>1</Milestone>`),
+  or acceptance artifacts rather than burying them inside narrative notes or prose descriptions.
+- Confirm final recommendation, closure, and handover milestones exist where required by the project scope.
+
+## 6. END-TO-END TRACEABILITY INTEGRITY
+- Verify every requirement, constraint, goal, or deliverable is accounted for in the schedule.
+- Ensure deliverable acceptance criteria and scope boundaries are concretely traceable to canonical register IDs.
+
+## 7. DIAGRAM LAYOUT AND READABILITY
+- Ensure companion PERT/CPM or network charts adapt layout geometry (node sizing, multi-row wrapping, label truncation)
+  to the activity count so labels and dependency arrows do not overlap or clip as backlogs grow.
+
+# RESPONSE FORMAT
+Provide a structured schedule audit:
+- Overall Verdict (APPROVED or REVISE)
+- Schedule & Timescale Analysis (Start Date, Finish Date, Duration in Weeks/Days vs Target)
+- Concurrency & Dependency Evaluation
+- Calendar & Holiday Handling
+- Resource Allocation & Costing Audit
+- Deliverable Coverage & Goal Alignment
+- Actionable Recommendations
+""",
+            "tools": [
+                "inspect_project_plan",
+                "load_portfolio_backlog",
+                "load_requirements_summary"
+            ]
+        },
+
+        {
+            "name": "inspect_project_plan",
+            "function": {
+                "description": "Parses and returns structured quality and schedule metrics for the exported project plan (MSPDI XML).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["portfolio_backlog", "proposal_response"],
+                            "description": "Which project plan to inspect. Defaults to portfolio_backlog."
+                        }
+                    }
+                }
+            },
+            "class": "inspect_project_plan_tool.InspectProjectPlanCodedTool"
+        },
+        {
+            "name": "load_portfolio_backlog",
+            "function": {"description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."},
+            "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}

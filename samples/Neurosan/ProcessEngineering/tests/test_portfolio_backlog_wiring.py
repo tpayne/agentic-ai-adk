@@ -111,3 +111,29 @@ def test_web_artifact_routes_expose_backlog_json_and_workbook():
 
     assert '"portfolio_backlog": "portfolio_backlog.json"' in text
     assert '"/artifacts/portfolio_backlog_workbook/download"' in text
+
+
+def test_portfolio_backlog_reviewer_shims_reexport_canonical_classes():
+    from coded_tools.portfolio_backlog_reviewer.load_portfolio_backlog_tool import (
+        LoadPortfolioBacklogCodedTool as ReviewerLoadPortfolioBacklog,
+    )
+    from coded_tools.portfolio_backlog.load_portfolio_backlog_tool import (
+        LoadPortfolioBacklogCodedTool as CanonicalLoadPortfolioBacklog,
+    )
+    from coded_tools.portfolio_backlog_reviewer.load_requirements_summary_tool import (
+        LoadRequirementsSummaryCodedTool as ReviewerLoadRequirementsSummary,
+    )
+    from coded_tools.requirements_summary.load_requirements_summary_tool import (
+        LoadRequirementsSummaryCodedTool as CanonicalLoadRequirementsSummary,
+    )
+    from coded_tools.portfolio_backlog_reviewer.design_json_tool import (
+        LoadFullDesignContextCodedTool as ReviewerLoadFullDesignContext,
+    )
+    from coded_tools.design.design_json_tool import (
+        LoadFullDesignContextCodedTool as CanonicalLoadFullDesignContext,
+    )
+
+    assert ReviewerLoadPortfolioBacklog is CanonicalLoadPortfolioBacklog
+    assert ReviewerLoadRequirementsSummary is CanonicalLoadRequirementsSummary
+    assert ReviewerLoadFullDesignContext is CanonicalLoadFullDesignContext
+

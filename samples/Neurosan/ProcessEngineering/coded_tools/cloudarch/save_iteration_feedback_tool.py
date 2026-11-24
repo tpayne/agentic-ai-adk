@@ -12,6 +12,8 @@ class SaveIterationFeedbackCodedTool(CodedTool):
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         feedback = args.get("feedback")
+        if feedback is None:
+            feedback = args.get("feedback_data")
         channel = args.get("channel", "")
         return save_iteration_feedback(feedback, channel=channel)
 

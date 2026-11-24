@@ -8,7 +8,9 @@ framework-specific, so the logic carries over unchanged.
 import base64
 import os
 import tempfile
+from typing import Optional
 
+from process_toolkit.docgen.project_plan_export import mspdi_project_title, parse_mspdi_tasks
 from process_toolkit.ingestion.chunking import chunk_and_wrap, wrap_untrusted
 
 
@@ -18,15 +20,68 @@ def _extract_txt_file(path: str) -> str:
 
 
 def _extract_xml_file(path: str) -> str:
-    # Read as raw markup, not parsed/re-serialized -- an uploaded XML file
-    # here is typically a structured process/architecture export (a BPMN
-    # process definition, a drawio/mxGraph diagram, a Visio export) being
-    # offered as source material, and an LLM generally understands XML
-    # structure directly from the raw tags at least as well as from any
-    # text this module could derive from it, so this is the same
-    # read-as-text approach as _extract_txt_file above, not a dedicated
-    # parser.
+    # Content-sniffed: a Microsoft Project / ProjectLibre interchange-format
+    # (MSPDI) file gets its real <Tasks> structure parsed into clean,
+    # readable per-task text (see _extract_project_plan_file below) -- same
+    # "parse the real structure meaningfully instead of returning raw tags"
+    # reasoning as _extract_vsdx_file below, rather than handing an LLM
+    # hundreds of deeply-nested, heavily-namespaced XML tags per task.
+    #
+    # Any OTHER .xml file (a BPMN process definition, a drawio/mxGraph
+    # diagram, a Visio export, or anything else) is read as raw markup, not
+    # parsed/re-serialized -- an LLM generally understands XML structure
+    # directly from the raw tags at least as well as from any text this
+    # module could derive from it, so this stays the same read-as-text
+    # approach as _extract_txt_file above for everything that isn't MSPDI.
+    project_plan_text = _extract_project_plan_file(path)
+    if project_plan_text is not None:
+        return project_plan_text
     return _extract_txt_file(path)
+
+
+def _extract_project_plan_file(path: str) -> Optional[str]:
+    """Parses a Microsoft Project / ProjectLibre interchange-format (MSPDI)
+    XML file -- the exact format process_toolkit.docgen.project_plan_export
+    writes -- into a clean, readable per-task text block. Returns None for
+    any file that isn't actually MSPDI (malformed XML, or a real root
+    element that isn't the MSPDI namespace's own <Project>), so the caller
+    falls back to the generic raw-text XML handler unchanged.
+
+    The actual <Tasks> walk lives in process_toolkit.docgen.
+    project_plan_export.parse_mspdi_tasks -- shared with the web client's
+    own "Diagrams" tab Gantt view, so an MSPDI file's own structure is only
+    ever walked in one place. This function's own job is purely the
+    readable-text FORMATTING of that shared, structured result."""
+    tasks = parse_mspdi_tasks(path)
+    if tasks is None:
+        return None
+    title = mspdi_project_title(path) or "Project Plan"
+
+    name_by_uid = {task["uid"]: task["name"] for task in tasks}
+
+    lines = [f"[Microsoft Project / ProjectLibre plan: {title}]"]
+    for task in tasks:
+        if not task["name"]:
+            continue
+        indent = "  " * max(task["outline_level"] - 1, 0)
+
+        parts = [f'{indent}{task["name"]}']
+        if task["duration_hours"] is not None:
+            approx_days = round(task["duration_hours"] / 8, 2)
+            parts.append(f"-- Duration: ~{approx_days:g} working day(s)")
+        if task["start"]:
+            parts.append(f'-- Start: {task["start"]}')
+        if task["finish"]:
+            parts.append(f'-- Finish: {task["finish"]}')
+        pred_name = name_by_uid.get(task["predecessor_uid"])
+        if pred_name:
+            parts.append(f"-- Predecessor: {pred_name}")
+        lines.append(" ".join(parts))
+
+        if task["notes"]:
+            lines.append(f'{indent}  Notes: {task["notes"]}')
+
+    return "\n".join(lines)
 
 
 def _extract_json_file(path: str) -> str:

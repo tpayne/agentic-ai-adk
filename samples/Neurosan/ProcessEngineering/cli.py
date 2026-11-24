@@ -169,7 +169,12 @@ from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  
 
 from process_interface import paths  # noqa: E402
 from process_interface.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
-from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
+from process_interface.run_lock import (  # noqa: E402
+    force_clear_pipeline_lock,
+    peek_pipeline_lock,
+    release_pipeline_lock,
+    stop_pipeline_lock_heartbeat,
+)
 from process_interface.session_purge import purge_session, start_session_purge_thread  # noqa: E402
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
@@ -483,17 +488,24 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     cheap and a no-op on the overwhelming majority of calls, where the
     pipeline's own finalize step already released everything normally.
     """
-    if not sly_data:
-        return
-    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
-    if not token:
-        return
-    _web_logger.warning(
-        "Turn ended with pipeline lock token %s still held -- releasing it "
-        "defensively (most likely a cancelled turn).", token,
-    )
-    stop_pipeline_lock_heartbeat(token)
-    release_pipeline_lock(token)
+    token = None
+    if isinstance(sly_data, dict):
+        sly_data.pop("_current_turn_id", None)
+        sly_data.pop("_pipeline_lock_turn_id", None)
+        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
+    if token:
+        _web_logger.debug(
+            "Turn ended with pipeline lock token %s still held in sly_data -- releasing it defensively.", token,
+        )
+        stop_pipeline_lock_heartbeat(token)
+        release_pipeline_lock(token)
+    # Defense-in-depth: unconditionally clear any leftover lock for this session
+    held = peek_pipeline_lock()
+    if held is not None:
+        _web_logger.debug(
+            "Turn ended with pipeline lock still held in memory for session (%s) -- force clearing defensively.", held,
+        )
+        force_clear_pipeline_lock()
 
 
 def _dedupe_doubled_answer(text: Optional[str]) -> Optional[str]:
@@ -781,7 +793,11 @@ class ChatSession:
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
         with self._lock:
             turn_started = time.monotonic()
+            turn_id = uuid.uuid4().hex
             self.last_accessed = turn_started
+            if self.sly_data is None:
+                self.sly_data = {}
+            self.sly_data["_current_turn_id"] = turn_id
             try:
                 staged = self._ingest_attachments(files)
                 attachments_directory, attachment_filenames = staged if staged else (None, None)
@@ -878,7 +894,12 @@ class ChatSession:
         # closed/GC'd (GeneratorExit also unwinds through this `with`).
         with self._lock:
             turn_started = time.monotonic()
+            turn_id = uuid.uuid4().hex
             self.last_accessed = turn_started
+            _web_logger.info("send_streaming: turn started (turn_id=%s, text_len=%d, attachments=%d)", turn_id, len(text), len(files) if files else 0)
+            if self.sly_data is None:
+                self.sly_data = {}
+            self.sly_data["_current_turn_id"] = turn_id
             staged = self._ingest_attachments(files)
             attachments_directory, attachment_filenames = staged if staged else (None, None)
             effective_text = _append_attachment_directory_marker(
@@ -935,12 +956,14 @@ class ChatSession:
                         if len(preview) > 160:
                             preview = preview[:159] + "…"
                         origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                        _web_logger.debug("send_streaming progress [%s]: %s", origin_str, preview)
                         yield {"status": "progress", "origin": origin_str, "text": preview}
                 except asyncio.CancelledError:
                     if _trace_logger.isEnabledFor(logging.INFO):
                         _trace_logger.info(
                             "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
                         )
+                    _web_logger.info("send_streaming: turn stopped after %.2fs", time.monotonic() - turn_started)
                     yield {"status": "stopped", "response": _dedupe_doubled_answer(last_compiled_answer) or ""}
                     return
 
@@ -967,6 +990,10 @@ class ChatSession:
                         time.monotonic() - turn_started,
                         json.dumps(token_accounting) if token_accounting else None,
                     )
+                _web_logger.info(
+                    "send_streaming: turn completed in %.2fs (usage=%s)",
+                    time.monotonic() - turn_started, self.last_usage,
+                )
 
                 yield {
                     "status": "done",
@@ -974,6 +1001,16 @@ class ChatSession:
                     "usage": self.last_usage,
                 }
             finally:
+                if self.sly_data is None or PIPELINE_LOCK_TOKEN_KEY not in self.sly_data:
+                    try:
+                        proc_sly = processor.get_sly_data()
+                        if proc_sly and PIPELINE_LOCK_TOKEN_KEY in proc_sly:
+                            if self.sly_data is not None:
+                                self.sly_data.update(proc_sly)
+                            else:
+                                self.sly_data = proc_sly.copy()
+                    except Exception:
+                        pass
                 _release_any_leftover_pipeline_lock(self.sly_data)
 
 
@@ -1781,12 +1818,14 @@ def build_web_app(agent_name: str, https: bool = True):
             return jsonify({"status": "error", "error": files_error}), 400
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        _web_logger.info("POST /chat received (session=%s, query_len=%d)", session_id, len(query.strip()))
 
         web_session_id = None
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
             with paths.use_session(web_session_id):
                 response_text = session.send(query.strip(), files=files)
+            _web_logger.info("POST /chat completed (session=%s, resp_len=%d)", web_session_id, len(response_text or ""))
         except Exception:
             _web_logger.exception("Web chat error")
             return jsonify({
@@ -1845,6 +1884,7 @@ def build_web_app(agent_name: str, https: bool = True):
             return jsonify({"status": "error", "error": files_error}), 400
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        _web_logger.info("POST /chat/stream received (session=%s, query_len=%d)", session_id, len(query.strip()))
         # Resolved up front (not inside the generator below) so the
         # session id is known -- and its cookie set -- before the
         # streaming response even starts, exactly like POST /chat.
@@ -1867,11 +1907,13 @@ def build_web_app(agent_name: str, https: bool = True):
             # (gevent/eventlet), which this project does not use.
             try:
                 try:
+                    _web_logger.info("Chat stream session %s active: beginning event streaming", web_session_id)
                     with paths.use_session(web_session_id):
                         for update in session.send_streaming(query.strip(), files=files):
                             yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+                    _web_logger.info("Chat stream session %s ended cleanly", web_session_id)
                 except Exception:
-                    _web_logger.exception("Web chat stream error")
+                    _web_logger.exception("Web chat stream error for session %s", web_session_id)
                     error_event = {
                         "status": "error", "session_id": web_session_id, "error": "An internal error has occurred.",
                     }
@@ -2163,7 +2205,43 @@ def build_web_app(agent_name: str, https: bool = True):
         "cloudarch" returns `data` as the raw XML STRING (not JSON-parsed)
         -- the client's own mxGraph-XML renderer parses it directly, the
         same way it already does for a saved .drawio file.
+
+        The three "*_vsdx" names and two "*_project_plan" names power the
+        same "Diagrams" tab's generalized graph/Gantt views -- `data` for
+        those is neither raw text nor a plain JSON-file-load, but the
+        PARSED structured shape (process_interface.docgen.vsdx_export.
+        parse_vsdx_to_graph's {"vertices": [...], "edges": [...]}, or
+        process_interface.docgen.project_plan_export.parse_mspdi_tasks's
+        {"tasks": [...]}), since .vsdx is a binary zip format the client
+        cannot parse itself and the project-plan XML is parsed server-side
+        for consistency with it.
         """
+        from process_interface.docgen.vsdx_export import (
+            CLOUDARCH_VSDX_FILENAME, DESIGN_FLOW_VSDX_FILENAME, PROCESS_FLOW_VSDX_FILENAME,
+            parse_vsdx_to_graph,
+        )
+        from process_interface.docgen.project_plan_export import (
+            PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+            parse_mspdi_tasks, parse_mspdi_project,
+        )
+
+        graph_names = {
+            "process_flow_vsdx": PROCESS_FLOW_VSDX_FILENAME,
+            "design_flow_vsdx": DESIGN_FLOW_VSDX_FILENAME,
+            "cloudarch_vsdx": CLOUDARCH_VSDX_FILENAME,
+        }
+        task_list_names = {
+            "portfolio_backlog_project_plan": PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+            "proposal_response_project_plan": PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+        }
+        # Raw mxGraph/draw.io XML text, returned as-is for the client's own
+        # parseDrawioXml. The PERT/CPM network diagrams generated alongside
+        # every project plan export are real PNG images, not XML -- they
+        # have no entry here at all, only a /download route (binary,
+        # below), same as every other binary artifact (.vsdx, .xlsx, .docx).
+        raw_xml_names = {
+            "cloudarch": "cloudarch_drawio.xml",
+        }
         filenames = {
             "process": "process_data.json",
             "design": "design_data.json",
@@ -2173,7 +2251,9 @@ def build_web_app(agent_name: str, https: bool = True):
             "portfolio_backlog": "portfolio_backlog.json",
             "togaf": "togaf_data.json",
             "itsm": "itsm_data.json",
-            "cloudarch": "cloudarch_drawio.xml",
+            **raw_xml_names,
+            **graph_names,
+            **task_list_names,
         }
         filename = filenames.get(name)
         if filename is None:
@@ -2182,28 +2262,45 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
                     "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', "
-                    "'itsm', or 'cloudarch'."
+                    "'itsm', 'cloudarch', 'process_flow_vsdx', 'design_flow_vsdx', "
+                    "'cloudarch_vsdx', 'portfolio_backlog_project_plan', or "
+                    "'proposal_response_project_plan'. The PERT/CPM diagrams "
+                    "('portfolio_backlog_pert_cpm'/'proposal_response_pert_cpm') are images -- "
+                    "use their own /download route instead."
                 ),
             }), 400
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/%s requested (session=%s)", name, session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), filename)
             if not os.path.exists(path):
+                _web_logger.debug("GET /artifacts/%s: file not found at %s (session=%s)", name, path, session_id)
                 return jsonify({
                     "status": "error",
                     "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
                 }), 404
 
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = f.read() if name == "cloudarch" else json.load(f)
+                if name in graph_names:
+                    data = parse_vsdx_to_graph(path)
+                elif name in task_list_names:
+                    project_data = parse_mspdi_project(path)
+                    data = project_data if project_data is not None else {"tasks": parse_mspdi_tasks(path) or []}
+                elif name in raw_xml_names:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = f.read()
+                else:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
             except Exception:
-                _web_logger.exception("Failed to read/parse %s", filename)
+                _web_logger.exception("Failed to read/parse %s (session=%s)", filename, session_id)
                 return jsonify({
                     "status": "error",
                     "error": f"Could not read {filename} -- see server logs.",
                 }), 500
 
+        _web_logger.info("GET /artifacts/%s: successfully served %s (session=%s)", name, filename, session_id)
         return jsonify({"status": "ok", "name": name, "data": data})
 
     @web_app.route("/artifacts/documents", methods=["GET"])
@@ -2362,6 +2459,110 @@ def build_web_app(agent_name: str, https: bool = True):
             mimetype="application/vnd.ms-visio.drawing.main+xml",
         )
 
+    @web_app.route("/artifacts/portfolio_backlog_project_plan/download", methods=["GET"])
+    def download_portfolio_backlog_project_plan():
+        """Downloads this web session's own exported Portfolio Backlog
+        project plan (MSPDI XML) file -- see /project_plan_export's own
+        ExportProjectPlanCodedTool for how it's produced. Structurally
+        identical to download_cloudarch above, just for this artifact kind."""
+        from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/portfolio_backlog_project_plan/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
+            path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            _web_logger.debug("GET /artifacts/portfolio_backlog_project_plan/download: not found at %s (session=%s)", path, session_id)
+            return jsonify({
+                "status": "error",
+                "error": f"No {PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
+            }), 404
+        _web_logger.info("GET /artifacts/portfolio_backlog_project_plan/download: serving %s (session=%s)", path, session_id)
+        return send_file(
+            path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+            mimetype="application/xml",
+        )
+
+    @web_app.route("/artifacts/proposal_response_project_plan/download", methods=["GET"])
+    def download_proposal_response_project_plan():
+        """Downloads this web session's own exported Proposal Response
+        project plan (MSPDI XML) file. Structurally identical to
+        download_portfolio_backlog_project_plan above, just for the
+        proposal response domain."""
+        from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/proposal_response_project_plan/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
+            path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            _web_logger.debug("GET /artifacts/proposal_response_project_plan/download: not found at %s (session=%s)", path, session_id)
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME} found yet -- export the proposal response as a project plan first.",
+            }), 404
+        _web_logger.info("GET /artifacts/proposal_response_project_plan/download: serving %s (session=%s)", path, session_id)
+        return send_file(
+            path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+            mimetype="application/xml",
+        )
+
+    @web_app.route("/artifacts/portfolio_backlog_pert_cpm/download", methods=["GET"])
+    def download_portfolio_backlog_pert_cpm():
+        """Downloads this web session's own PERT/CPM network diagram -- a
+        real PNG image (matplotlib, see docgen.pert_cpm_export's own
+        generate_pert_cpm_diagram), generated alongside the Portfolio
+        Backlog's project plan every time it's exported. A binary image,
+        not text/JSON, so (unlike cloudarch/vsdx/project-plan artifacts)
+        this has no corresponding entry in the main /artifacts/<name> view
+        route above -- this download route is its only web exposure, the
+        same way .docx/.xlsx documents work."""
+        from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PERT_CPM_FILENAME
+
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/portfolio_backlog_pert_cpm/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
+            path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PERT_CPM_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            _web_logger.debug("GET /artifacts/portfolio_backlog_pert_cpm/download: not found at %s (session=%s)", path, session_id)
+            return jsonify({
+                "status": "error",
+                "error": f"No {PORTFOLIO_BACKLOG_PERT_CPM_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
+            }), 404
+        _web_logger.info("GET /artifacts/portfolio_backlog_pert_cpm/download: serving %s (session=%s)", path, session_id)
+        return send_file(
+            path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
+            mimetype="image/png",
+        )
+
+    @web_app.route("/artifacts/proposal_response_pert_cpm/download", methods=["GET"])
+    def download_proposal_response_pert_cpm():
+        """Downloads this web session's own PERT/CPM network diagram PNG
+        for the Proposal Response. Structurally identical to
+        download_portfolio_backlog_pert_cpm above, just for the proposal
+        response domain."""
+        from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PERT_CPM_FILENAME
+
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/proposal_response_pert_cpm/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
+            path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PERT_CPM_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            _web_logger.debug("GET /artifacts/proposal_response_pert_cpm/download: not found at %s (session=%s)", path, session_id)
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROPOSAL_RESPONSE_PERT_CPM_FILENAME} found yet -- export the proposal response as a project plan first.",
+            }), 404
+        _web_logger.info("GET /artifacts/proposal_response_pert_cpm/download: serving %s (session=%s)", path, session_id)
+        return send_file(
+            path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
+            mimetype="image/png",
+        )
+
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
@@ -2398,14 +2599,18 @@ def build_web_app(agent_name: str, https: bool = True):
                     "or 'itsm'."
                 ),
             }), 400
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/%s/download requested (session=%s)", name, session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), filename)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.debug("GET /artifacts/%s/download: not found at %s (session=%s)", name, path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
             }), 404
+        _web_logger.info("GET /artifacts/%s/download: serving %s (session=%s)", name, path, session_id)
         return send_file(path, as_attachment=True, download_name=filename, mimetype="application/json")
 
     @web_app.route("/agents/<name>/instructions", methods=["GET"])

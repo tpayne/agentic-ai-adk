@@ -15,6 +15,7 @@ from vsdx import VisioFile
 from process_toolkit import paths
 from process_toolkit.docgen.vsdx_export import (
     _TEMPLATE_PATH, _build_vsdx, build_cloudarch_vsdx, build_process_design_vsdx,
+    parse_vsdx_to_graph,
 )
 from process_toolkit.drawio.persistence import DRAWIO_FILENAME
 from process_toolkit.ingestion.extractors import _extract_vsdx_file
@@ -144,3 +145,62 @@ def test_build_cloudarch_vsdx_exports_vertices_and_edges_from_saved_diagram():
     assert "API Gateway" in extracted
     assert "Database" in extracted
     assert "API Gateway -- Database" in extracted or "Database -- API Gateway" in extracted
+
+
+class TestParseVsdxToGraph:
+    def test_round_trips_real_vertices_and_edges(self):
+        out_path = paths.output_path("fixture_flow.vsdx")
+        edges = [("Receive Request", "Review"), ("Review", "Approve")]
+        label_map = {"Receive Request": "Receive Request", "Review": "Review", "Approve": "Approve"}
+        _build_vsdx(edges, {}, label_map, "Process", "Fixture Flow", out_path)
+
+        graph = parse_vsdx_to_graph(out_path)
+
+        labels = {v["label"] for v in graph["vertices"]}
+        assert labels == {"Receive Request", "Review", "Approve"}
+        assert len(graph["edges"]) == 2
+
+        by_label = {v["label"]: v for v in graph["vertices"]}
+        for vertex in by_label.values():
+            assert vertex["width"] > 0
+            assert vertex["height"] > 0
+
+    def test_edges_reference_real_vertex_ids_in_both_directions(self):
+        out_path = paths.output_path("fixture_flow2.vsdx")
+        edges = [("A", "B")]
+        label_map = {"A": "A", "B": "B"}
+        _build_vsdx(edges, {}, label_map, "Process", "Fixture", out_path)
+
+        graph = parse_vsdx_to_graph(out_path)
+        vertex_ids = {v["id"] for v in graph["vertices"]}
+        assert len(graph["edges"]) == 1
+        edge = graph["edges"][0]
+        assert edge["source"] in vertex_ids
+        assert edge["target"] in vertex_ids
+        assert edge["source"] != edge["target"]
+
+    def test_connector_shapes_do_not_leak_in_as_fake_vertices(self):
+        # CONFIRMED AS A REAL BUG during development: page.all_shapes walks
+        # connector/line shapes too (zero height, no text) -- without
+        # filtering to shapes with real text, every connector became an
+        # extra, fake, zero-size "vertex" alongside the real labeled ones.
+        out_path = paths.output_path("fixture_flow3.vsdx")
+        edges = [("A", "B"), ("B", "C")]
+        label_map = {"A": "A", "B": "B", "C": "C"}
+        _build_vsdx(edges, {}, label_map, "Process", "Fixture", out_path)
+
+        graph = parse_vsdx_to_graph(out_path)
+        assert len(graph["vertices"]) == 3
+        for vertex in graph["vertices"]:
+            assert vertex["label"] in {"A", "B", "C"}
+
+    def test_empty_page_parses_cleanly_with_no_crash(self):
+        # _build_vsdx with no edges produces zero shapes at all (nodes are
+        # derived from edges -- see test_build_vsdx_with_no_edges_produces_
+        # an_empty_page_not_a_crash above) -- this just pins down that
+        # parse_vsdx_to_graph handles a genuinely empty page gracefully.
+        out_path = paths.output_path("fixture_empty.vsdx")
+        _build_vsdx([], {}, {"Lonely": "Lonely"}, "Process", "Empty", out_path)
+
+        graph = parse_vsdx_to_graph(out_path)
+        assert graph == {"vertices": [], "edges": []}

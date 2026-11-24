@@ -10,26 +10,85 @@ def _read(relative_path):
 
 
 def test_pipeline_registers_backlog_agent_and_source_tools():
-    from process_agents.common.portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline
+    from process_agents.common.portfolio_backlog_pipeline_agent import (
+        portfolio_backlog_pipeline,
+        portfolio_backlog_review_loop,
+        portfolio_backlog_reviewer_instance,
+        stop_controller_agent_instance,
+    )
     from process_agents.common.portfolio_backlog_agent import portfolio_backlog_agent
+    from process_agents.common.portfolio_backlog_reviewer_agent import portfolio_backlog_reviewer_agent
     from process_agents.common.utils import (
         load_full_design_context,
         load_portfolio_backlog,
         load_requirements_summary,
         save_portfolio_backlog,
+        load_iteration_feedback,
     )
 
-    assert portfolio_backlog_agent in portfolio_backlog_pipeline.sub_agents
+    assert portfolio_backlog_review_loop in portfolio_backlog_pipeline.sub_agents
+    assert portfolio_backlog_agent in portfolio_backlog_review_loop.sub_agents
+    assert portfolio_backlog_reviewer_instance in portfolio_backlog_review_loop.sub_agents
+    assert stop_controller_agent_instance in portfolio_backlog_review_loop.sub_agents
     assert {
         load_full_design_context,
         load_portfolio_backlog,
         load_requirements_summary,
         save_portfolio_backlog,
+        load_iteration_feedback,
     } <= set(portfolio_backlog_agent.tools)
     registry = _read("process_agents/common/agent_registry.py")
     root = _read("process_agents/common/agent.py")
     assert "from .portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline" in registry
     assert root.count("portfolio_backlog_pipeline,") == 2
+    assert "from .portfolio_backlog_reviewer_agent import portfolio_backlog_reviewer_agent" in registry
+    assert root.count("portfolio_backlog_reviewer_agent,") == 2
+
+
+def test_portfolio_backlog_reviewer_wiring_and_instructions():
+    from process_agents.common.portfolio_backlog_reviewer_agent import portfolio_backlog_reviewer_agent
+    from process_agents.common.utils import (
+        load_portfolio_backlog,
+        load_requirements_summary,
+        load_full_design_context,
+        save_iteration_feedback,
+        load_iteration_feedback,
+    )
+
+    assert {
+        load_portfolio_backlog,
+        load_requirements_summary,
+        load_full_design_context,
+        save_iteration_feedback,
+        load_iteration_feedback,
+    } <= set(portfolio_backlog_reviewer_agent.tools)
+
+    text = _read("instructions/common/portfolio_backlog_reviewer_agent.txt")
+    assert "WORK BREAKDOWN STRUCTURE (WBS) INTEGRITY" in text
+    assert "crude 1-to-1-to-1 dummy hierarchy repetition" in text
+    assert "PORTFOLIO_BACKLOG_REVIEW_APPROVED" in text
+    assert "ACCEPTANCE CRITERIA SUBSTANCE" in text
+    assert "RESOURCING & WSJF PRIORITIZATION" in text
+
+
+def test_reset_portfolio_backlog_approval_state(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from process_toolkit import paths
+
+    monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    os.makedirs("output", exist_ok=True)
+
+    stale_feedback = paths.output_path("iteration_feedback_portfolio_backlog_reviewer.json")
+    with open(stale_feedback, "w", encoding="utf-8") as f:
+        json.dump({"status": "PORTFOLIO_BACKLOG_REVIEW_APPROVED", "data": []}, f)
+
+    from process_agents.common.portfolio_backlog_pipeline_agent import _reset_portfolio_backlog_approval_state
+
+    context = SimpleNamespace(state={}, invocation_id="test-inv")
+    assert _reset_portfolio_backlog_approval_state(context) is None
+    assert not os.path.exists(stale_feedback)
 
 
 def test_backlog_instructions_define_source_precedence_and_quality_contract():
