@@ -2276,9 +2276,26 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), filename)
             if not os.path.exists(path):
                 _web_logger.debug("GET /artifacts/%s: file not found at %s (session=%s)", name, path, session_id)
+                missing_guidance = {
+                    "cloudarch": "run the cloud architecture pipeline or ask to design a cloud architecture first.",
+                    "process_flow_vsdx": "export the process flow to Visio first (e.g. 'export process flow to visio').",
+                    "design_flow_vsdx": "export the technical design to Visio first (e.g. 'export design flow to visio').",
+                    "cloudarch_vsdx": "export the cloud architecture to Visio first (e.g. 'export cloud architecture to visio').",
+                    "portfolio_backlog_project_plan": "export the portfolio backlog as a project plan first (e.g. 'export project plan').",
+                    "proposal_response_project_plan": "export the proposal response as a project plan first (e.g. 'export proposal project plan').",
+                    "process": "run the process engineering pipeline at least once.",
+                    "design": "run the technical design pipeline at least once.",
+                    "requirements": "run requirements extraction at least once.",
+                    "proposal_response": "run the proposal response pipeline at least once.",
+                    "test_specification": "run the test specification pipeline at least once.",
+                    "portfolio_backlog": "run the portfolio backlog pipeline at least once.",
+                    "togaf": "run the TOGAF architecture pipeline at least once.",
+                    "itsm": "run the ITSM pipeline at least once.",
+                }
+                hint = missing_guidance.get(name, f"run the {name} pipeline at least once, then try again.")
                 return jsonify({
                     "status": "error",
-                    "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+                    "error": f"No {filename} found yet -- {hint}",
                 }), 404
 
             try:

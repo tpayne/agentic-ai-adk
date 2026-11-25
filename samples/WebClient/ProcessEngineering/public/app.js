@@ -2813,7 +2813,7 @@
     cloudarch: {
       kind: "xml",
       filename: "cloudarch_drawio.xml",
-      label: "cloud architecture diagram",
+      label: "cloud architecture (Draw.io) diagram",
       disclaimer: "This is a summary rendering only. It approximates the real diagram and may not " +
         "show everything a true DrawIO client would.",
     },
