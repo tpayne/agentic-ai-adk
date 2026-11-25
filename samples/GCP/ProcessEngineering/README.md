@@ -15,7 +15,7 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 - Generates and refines **cloud architecture diagrams** (AWS/Azure/GCP) from a design document, including natural-language edits (e.g. "add a WAF in front of the load balancer").
 - Answers questions, runs **"what-if" scenarios**, and **simulates** resilience/scalability/security/latency against an existing process, design, or diagram.
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
-- **Imports** an already-existing process/design document from a folder of files — including Visio diagrams (`.vsdx`/`.vsdm`) and images (genuinely analyzed as vision input, not just OCR'd) — or **summarizes requirements** from a pile of documents before you've decided what to build.
+- **Imports** an already-existing process/design document from a folder of files — including Visio diagrams (`.vsdx`/`.vsdm`) and **JPG/PNG images** (diagrams, flowcharts, swimlane charts, wireframes via multimodal vision interpretation with OCR fallback) — or **translates an image directly** into a structured process (`process_data.json`) or requirements summary (`requirements_summary.json`).
 - **Exports** a process/design flow diagram, or the cloud architecture diagram, as a real Visio (`.vsdx`) file, on demand only.
 - **Drafts a formal Response to Proposal/RFP** against a saved (or self-analyzed) requirements summary, and **generates a traceable test specification** — test cases with coverage-gap analysis — validating whichever of the saved requirements, design, and cloud architecture currently exist.
 - **Generates an Enterprise Agile Portfolio Backlog** from the saved design or, if none exists, the saved requirements summary — with traceable epics/features/stories, WSJF scoring, and a template-based Excel workbook with editable USD costing assumptions.
@@ -36,7 +36,7 @@ This suite is built from a set of ADK agent pipelines — each one a focused pip
 | `Consultant_Agent` | Consultant | Answers questions about an existing business process. | — |
 | `Scenario_Tester` | Scenario tester | Tests "what-if" scenarios against an existing process. | — |
 | `Simulation_Optimization_Query_Agent` | Simulation query | Answers questions about an existing process's cycle-time simulation results. | — |
-| `Process_Import_Agent` | Import | Imports an already-existing business process document directly into `process_data.json`. | — |
+| `Process_Import_Agent` | Import | Imports an already-existing business process document, SOP, or JPG/PNG diagram/flowchart directly into `process_data.json` via text parsing or multimodal vision interpretation. | — |
 | `Full_Design_Doc_Pipeline` | Creation pipeline | Analyzes requirements, designs (HLD+LLD), compliance-reviews, and simulates a new design document, then renders the final document. | `Design_Doc_Analysis_Agent`, `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Document_Generation_Agent` |
 | `Update_Design_Doc_Pipeline` | Update pipeline | Same generate/review loop, applied as a delta against an existing design document. | `Design_Doc_Update_Analyst`, `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Document_Generation_Agent` |
 | `Design_Consultant_Agent` | Consultant | Answers questions about an existing design document, with license to bring in outside best practice. | — |

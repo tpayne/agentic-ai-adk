@@ -297,7 +297,8 @@ def test_load_directory_context_supports_direct_image_file_path():
     with tempfile.TemporaryDirectory() as d:
         img_path = _create_test_image(Path(d) / "single_diagram.png", "Invoice Approval Flow")
 
-        result = load_directory_context(str(img_path))
+        with patch("process_toolkit.ingestion.extractors.interpret_image_with_model", return_value="Invoice Approval Flow"):
+            result = load_directory_context(str(img_path))
 
     assert result["status"] == "OK"
     assert result["files_processed"] == ["single_diagram.png"]

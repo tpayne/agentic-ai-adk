@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 from PIL import Image, ImageDraw
 
 from coded_tools.process_import.load_directory_context_tool import (
@@ -48,18 +49,19 @@ def test_load_directory_context_coded_tool_accepts_image_file():
     with tempfile.TemporaryDirectory() as d:
         img_path = _create_test_image(Path(d) / "process_diagram.png", "Approval Workflow")
 
-        tool = ProcessImportLoadDirectoryContextCodedTool()
-        result = tool.invoke({"directory": str(img_path)}, {})
-        assert result["status"] == "OK"
-        assert result["files_processed"] == ["process_diagram.png"]
-        assert len(result["images"]) == 1
-        assert "Approval Workflow" in result["combined_text"]
+        with patch("process_toolkit.ingestion.extractors.interpret_image_with_model", return_value="Approval Workflow"):
+            tool = ProcessImportLoadDirectoryContextCodedTool()
+            result = tool.invoke({"directory": str(img_path)}, {})
+            assert result["status"] == "OK"
+            assert result["files_processed"] == ["process_diagram.png"]
+            assert len(result["images"]) == 1
+            assert "Approval Workflow" in result["combined_text"]
 
-        # Also test with 'path' alias
-        req_tool = RequirementsLoadDirectoryContextCodedTool()
-        result_alias = req_tool.invoke({"path": str(img_path)}, {})
-        assert result_alias["status"] == "OK"
-        assert result_alias["files_processed"] == ["process_diagram.png"]
+            # Also test with 'path' alias
+            req_tool = RequirementsLoadDirectoryContextCodedTool()
+            result_alias = req_tool.invoke({"path": str(img_path)}, {})
+            assert result_alias["status"] == "OK"
+            assert result_alias["files_processed"] == ["process_diagram.png"]
 
 
 def test_import_image_tool_execution():
