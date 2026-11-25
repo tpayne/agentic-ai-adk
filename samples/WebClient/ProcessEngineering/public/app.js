@@ -3281,7 +3281,7 @@
   // needs a second code path).
   function renderGraphDiagram(rawVertices, rawEdges, { useCloudIcons }) {
     const vertices = useCloudIcons ? rawVertices : rawVertices.map((v) => ({
-      id: v.id, value: v.label || "", style: {}, width: v.width, height: v.height, absX: v.x, absY: v.y,
+      id: v.id, value: v.label || "", style: v.style || {}, width: v.width, height: v.height, absX: v.x, absY: v.y,
     }));
     const edges = useCloudIcons ? rawEdges : rawEdges.map((e) => ({
       source: e.source, target: e.target, style: {}, points: [], value: "",
@@ -3367,9 +3367,9 @@
       rect.setAttribute("height", String(v.height));
       const arcSize = style.arcSize ? Number(style.arcSize) : 4;
       rect.setAttribute("rx", style.rounded === "1" ? String(Math.min(v.width, v.height) * arcSize / 100) : "0");
-      rect.setAttribute("fill", isImagePlaceholder ? "var(--accent-soft)" : (style.fillColor || "#ffffff"));
-      rect.setAttribute("stroke", isImagePlaceholder ? "var(--accent)" : (style.strokeColor || "#9aa0a6"));
-      rect.setAttribute("stroke-width", style.strokeWidth || "1");
+      rect.setAttribute("fill", isImagePlaceholder ? "var(--accent-soft)" : (style.fillColor || "var(--panel, #ffffff)"));
+      rect.setAttribute("stroke", isImagePlaceholder ? "var(--accent)" : (style.strokeColor || "var(--border, #9aa0a6)"));
+      rect.setAttribute("stroke-width", style.strokeWidth || "1.5");
       if (style.dashed === "1") rect.setAttribute("stroke-dasharray", "4,3");
       g.appendChild(rect);
 
@@ -3406,7 +3406,7 @@
         label.className = "cloudarch-cell-label";
         label.style.textAlign = style.align === "left" ? "left" : style.align === "right" ? "right" : "center";
         label.style.justifyContent = style.verticalAlign === "top" ? "flex-start" : "center";
-        label.style.color = style.fontColor || "#202124";
+        label.style.color = style.fontColor || "var(--text, #202124)";
         label.style.fontSize = `${style.fontSize || 11}px`;
         // Trusted HTML ("<b>Title</b><br/>...") only for useCloudIcons --
         // this project's own layout-engine-authored markup, the same
