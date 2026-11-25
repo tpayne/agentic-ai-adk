@@ -710,3 +710,30 @@ class TestRealHttpsTransport:
         with pytest.raises(Exception):
             async with Client(f"https://127.0.0.1:{port}/mcp", verify=trust_context) as client:
                 await client.call_tool("list_schema_types")
+
+
+class TestImportImageTool:
+    async def test_import_image_base64_process(self, tmp_path):
+        import io
+        from PIL import Image, ImageDraw
+        img = Image.new("RGB", (300, 100), color="white")
+        draw = ImageDraw.Draw(img)
+        draw.text((10, 30), "Approval Workflow", fill="black")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "import_image",
+                {"image_base64": encoded, "filename": "approval_workflow.png", "target_type": "process", "session_id": "img_s1"},
+            )).data
+
+        assert result["status"] == "OK"
+        assert result["target_type"] == "process"
+        assert "Approval Workflow" in result["data"]["process_name"]
+
+    async def test_import_image_missing_inputs_raises_tool_error(self):
+        async with Client(server.mcp) as client:
+            with pytest.raises(Exception, match="Either image_base64 or image_path"):
+                await client.call_tool("import_image", {"target_type": "process"})

@@ -94,6 +94,9 @@ from process_toolkit.agentic_web import (
     search_capabilities as _search_capabilities,
     wrap_artifact_envelope as _wrap_artifact_envelope,
 )
+from process_toolkit.ingestion.image_interpreter import (
+    import_image as _import_image,
+)
 
 import dispatch
 
@@ -564,6 +567,45 @@ def get_artifact(filename: str, session_id: Optional[str] = None) -> dict:
     generate_diagram/generate_portfolio_backlog."""
     with _session(session_id):
         return _encode_file(_safe_artifact_path(filename))
+
+
+@mcp.tool
+def import_image(
+    image_base64: Optional[str] = None,
+    image_path: Optional[str] = None,
+    filename: str = "image.png",
+    target_type: str = "process",
+    session_id: Optional[str] = None,
+) -> dict:
+    """Imports a JPG/PNG process diagram, flowchart, or architecture spec image,
+    interprets it with a multimodal model (or OCR fallback), translates it to the
+    canonical process or requirements JSON schema, and persists it for `session_id`.
+
+    Provide either `image_base64` (base64-encoded image data) or `image_path`
+    (path on server filesystem).
+    `target_type` must be "process" or "requirements".
+    """
+    if not image_base64 and not image_path:
+        raise ToolError("Either image_base64 or image_path must be provided.")
+
+    if target_type not in ("process", "requirements"):
+        raise ToolError(f"Invalid target_type: {target_type!r}. Must be 'process' or 'requirements'.")
+
+    with _session(session_id):
+        if image_base64:
+            import shutil, tempfile
+            tmp_dir = tempfile.mkdtemp()
+            safe_name = os.path.basename(filename) if filename else "image.png"
+            tmp_path = os.path.join(tmp_dir, safe_name)
+            data = base64.b64decode(image_base64)
+            with open(tmp_path, "wb") as f:
+                f.write(data)
+            try:
+                return _import_image(tmp_path, target_type=target_type, session_id=session_id)
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+        else:
+            return _import_image(image_path, target_type=target_type, session_id=session_id)
 
 
 @mcp.tool

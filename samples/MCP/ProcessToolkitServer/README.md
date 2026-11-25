@@ -34,6 +34,7 @@ one tool per domain per operation:
 | `generate_portfolio_backlog(backlog, session_id?)` | Saves an Enterprise Agile Portfolio Backlog and renders its Excel workbook in one call (this domain validates and renders together, unlike every other `schema_type`). |
 | `load_portfolio_backlog_json(session_id?)` | The currently saved portfolio backlog JSON. |
 | `simulate_itsm_risk(session_id?)` | Structural risk/coverage analysis over the currently saved ITSM process document -- role-concentration bottlenecks, missing escalation paths, missing SLA measurement fields, outsized CI blast radius, RACI coverage gaps. Not a timing/cost simulation; the `itsm` schema has no duration/date fields to model one from. |
+| `import_image(image_base64?, image_path?, filename?, target_type?, session_id?)` | Imports a JPG/PNG process diagram, flowchart, or architecture spec image, interprets it via multimodal model (or OCR fallback), translates to canonical `process_data.json` or `requirements_summary.json`, and persists it for `session_id`. `target_type` is `"process"` or `"requirements"`. |
 | `list_artifacts(session_id?)` | Every generated file currently on disk for a session. |
 | `get_artifact(filename, session_id?)` | One artifact, as base64 -- since an external MCP client has no shared filesystem with this server. |
 

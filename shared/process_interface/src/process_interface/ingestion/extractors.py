@@ -1,20 +1,25 @@
-"""Always-local re-export -- load_directory_context reads an arbitrary,
-caller-chosen local directory (the user's own source-document folder),
-not the canonical session/output state; stage_attachments_to_directory
-writes to an equally caller-chosen local path. Neither is portable to a
-remote MCP server unless that server's filesystem happens to be
-co-located with the caller's own input directory, which this phase
-doesn't assume -- so these stay always-local, same reasoning as paths.py.
+"""Switchable and local re-exports:
+- load_directory_context reads an arbitrary caller-chosen local directory
+- stage_attachments_to_directory stages attachments to a caller-chosen local path
+- import_image runs locally in local mode; in MCP mode (PROCESS_TOOLKIT_MODE=mcp),
+  it base64-encodes the image and delegates to the MCP server's import_image tool,
+  mirroring the resulting process_data.json or requirements_summary.json locally.
 """
 
+import base64
+import os
+from typing import Any, Dict, Optional
+
 from process_toolkit.ingestion.extractors import (
-    import_image,
+    import_image as _toolkit_import_image,
     interpret_image_with_model,
     load_directory_context,
     stage_attachments_to_directory,
     translate_image_to_process_json,
     translate_image_to_requirements_json,
 )
+from process_interface import _transport, config, paths
+from process_interface.schema._common import mirror_local_copy
 
 __all__ = [
     "import_image",
@@ -24,3 +29,39 @@ __all__ = [
     "translate_image_to_process_json",
     "translate_image_to_requirements_json",
 ]
+
+
+def import_image(
+    path: str,
+    target_type: str = "process",
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Switchable import_image: runs locally in local mode; in MCP mode,
+    base64-encodes the image, delegates to the MCP server's import_image tool,
+    and mirrors the produced JSON locally."""
+    if not config.is_mcp_mode():
+        return _toolkit_import_image(path, target_type=target_type, session_id=session_id)
+
+    with open(path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    filename = os.path.basename(path)
+    active_session = session_id or paths.current_session_id()
+
+    result = _transport.call(
+        "import_image",
+        {
+            "image_base64": encoded,
+            "filename": filename,
+            "target_type": target_type,
+            "session_id": active_session,
+        },
+    )
+
+    if isinstance(result, dict) and result.get("status") == "OK" and isinstance(result.get("data"), dict):
+        local_filename = "process_data.json" if target_type == "process" else "requirements_summary.json"
+        try:
+            mirror_local_copy(local_filename, result["data"])
+        except Exception:
+            pass
+
+    return result

@@ -75,14 +75,14 @@ AGENT_CARDS: Dict[str, AgentCard] = {
     # -------------------------------------------------------------
     "requirements_summary": AgentCard(
         name="requirements_summary",
-        description="Extracts and synthesizes functional and non-functional requirements from document directories or text briefs.",
+        description="Extracts and synthesizes functional and non-functional requirements from document directories, text briefs, or JPG/PNG architecture diagrams and UI mockups via multimodal interpretation.",
         category="requirements",
         agent_type="generator",
-        inputs=["document_directory", "plain_text_brief", "extracted_chunks"],
+        inputs=["document_directory", "plain_text_brief", "extracted_chunks", "image_file"],
         outputs=["requirements_summary"],
         artifacts=["requirements_summary"],
         dependencies=[],
-        tags=["srs", "iso_29148", "functional_requirements", "non_functional_requirements"],
+        tags=["srs", "iso_29148", "functional_requirements", "non_functional_requirements", "multimodal", "image_import"],
     ),
     "requirements_consultant": AgentCard(
         name="requirements_consultant",
@@ -143,6 +143,17 @@ AGENT_CARDS: Dict[str, AgentCard] = {
         dependencies=[],
         tags=["bpmn", "swimlane", "workflow", "sop", "governance"],
     ),
+    "process_import": AgentCard(
+        name="process_import",
+        description="Imports an already-existing business process document, SOP, or JPG/PNG diagram/flowchart directly into the structured process schema via text parsing or multimodal vision interpretation.",
+        category="process",
+        agent_type="generator",
+        inputs=["document_directory", "image_file", "process_diagram"],
+        outputs=["process_definition", "process_flow_diagram"],
+        artifacts=["process_definition"],
+        dependencies=[],
+        tags=["import", "ingestion", "sop", "multimodal", "image_import", "diagram_import"],
+    ),
     "process_update": AgentCard(
         name="process_update",
         description="Applies natural-language modifications to an existing business process while preserving step IDs and structure.",
@@ -201,6 +212,17 @@ AGENT_CARDS: Dict[str, AgentCard] = {
         artifacts=["high_level_design", "low_level_design"],
         dependencies=[],
         tags=["hld", "lld", "software_architecture", "api_design", "database_design"],
+    ),
+    "design_import": AgentCard(
+        name="design_import",
+        description="Imports an already-existing technical design or architecture document (HLD/LLD/Combined) directly into the structured design schema.",
+        category="design",
+        agent_type="generator",
+        inputs=["document_directory"],
+        outputs=["high_level_design", "low_level_design"],
+        artifacts=["high_level_design", "low_level_design"],
+        dependencies=[],
+        tags=["import", "ingestion", "architecture", "hld", "lld"],
     ),
     "design_update": AgentCard(
         name="design_update",
