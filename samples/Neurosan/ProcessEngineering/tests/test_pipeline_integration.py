@@ -232,8 +232,32 @@ def test_cloudarch_pipeline_releases_its_lock_only_once_the_loop_genuinely_stops
     stopped = CloudArchLoopControl().invoke({"required": {"cloudarch_status": "APPROVED"}, "max_iterations": 2}, sly_data)
     assert stopped["verdict"] == "STOP"
     assert token not in run_lock._heartbeats  # stopped alongside the release on STOP
+    assert PIPELINE_LOCK_TOKEN_KEY not in sly_data
 
     acquire_pipeline_lock("a different pipeline")  # must not raise -- released on STOP
+
+
+def test_cloudarch_pipeline_releases_its_lock_and_token_on_an_exception():
+    # CONFIRMED AS A REAL BUG: cloudarch's own loop_control_tool.py's
+    # exception branch released the lock/heartbeat but never popped
+    # PIPELINE_LOCK_TOKEN_KEY out of sly_data -- unlike its two
+    # near-identical siblings (portfolio_backlog's and project_plan_
+    # export's own loop_control_tool.py), whose exception branches do.
+    # Later code checking sly_data.get(PIPELINE_LOCK_TOKEN_KEY) as a proxy
+    # for "do we still hold the lock" would wrongly believe it did, after
+    # the underlying lock had already been released.
+    sly_data = {}
+    assert CloudArchReset().invoke({}, sly_data)["status"] == "OK"
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    assert token
+    assert token in run_lock._heartbeats
+
+    with pytest.raises(ValueError):
+        CloudArchLoopControl().invoke({"max_iterations": "not-a-number"}, sly_data)
+
+    assert token not in run_lock._heartbeats
+    assert PIPELINE_LOCK_TOKEN_KEY not in sly_data
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released on the exception path
 
 
 def test_portfolio_backlog_pipeline_releases_its_lock_on_loop_control_stop():

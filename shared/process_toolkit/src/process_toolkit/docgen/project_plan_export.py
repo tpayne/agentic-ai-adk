@@ -1233,7 +1233,7 @@ def _build_and_write_pert_cpm(
             "predecessor_uids": preds,
         })
     try:
-        path = generate_pert_cpm_diagram(activities, root_task.name, filename)
+        path = generate_pert_cpm_diagram(activities, root_task.name, filename, holidays=holidays)
         logger.info("_build_and_write_pert_cpm: successfully generated PERT/CPM diagram at %s", path)
         return path, None
     except (OSError, ValueError) as e:

@@ -116,15 +116,42 @@ def test_concurrent_stale_reclaim_attempts_let_exactly_one_caller_win():
     assert len(successes) == 1, f"expected exactly one winner reclaiming the stale lock, got {successes}"
 
 
-def test_child_process_does_not_affect_parent_in_memory_lock():
+def test_processes_do_not_share_lock_state_at_all():
+    # CONFIRMED AS A REAL REGRESSION IN TEST COVERAGE (now fixed): this
+    # test used to be test_mutex_held_by_a_crashed_process_does_not_block_
+    # a_later_acquire, directly proving the OLD flock-based design's
+    # cross-process crash-safety (the kernel releases a dead process's
+    # flock immediately, so a crashed holder could never wedge a later
+    # acquire). It was replaced with a version that only forked a child
+    # doing nothing at all -- true, but trivially so, and it proved
+    # nothing about THIS design's own actual behavior.
+    #
+    # The honest property of the CURRENT in-memory design is the opposite
+    # of a safety guarantee: it's a documented LIMITATION (see run_lock.py's
+    # own module docstring) that two processes share NO lock state
+    # whatsoever. This proves that directly, via the literal mechanism
+    # behind it -- os.fork() gives the child a private COPY of
+    # _session_locks at fork time, so the child's own release() only ever
+    # clears its own copy and can never reach back into the parent's.
+    token = acquire_pipeline_lock("the parent's own pipeline")
+
     pid = os.fork()
     if pid == 0:
+        # Child: inherited a snapshot of the parent's lock at fork time.
+        # Releasing it here only clears the CHILD's own in-memory copy.
+        release_pipeline_lock(token)
         os._exit(0)
     os.waitpid(pid, 0)
 
+    # The parent's own lock is completely untouched by the child's
+    # release -- a different token is still rejected here.
     start = time.time()
-    acquire_pipeline_lock("a pipeline in the parent")  # must not raise or hang
-    assert time.time() - start < 1.0
+    with pytest.raises(PipelineLockedError):
+        acquire_pipeline_lock("a different pipeline")
+    assert time.time() - start < 1.0  # rejected immediately, not after waiting out a staleness window
+
+    release_pipeline_lock(token)
+    acquire_pipeline_lock("a different pipeline")  # now genuinely free
 
 
 def test_concurrent_acquire_attempts_let_exactly_one_caller_win():

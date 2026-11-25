@@ -11,6 +11,31 @@ Locks are tracked entirely in server/process memory:
   - Re-acquiring with the same token within a session succeeds (reentrancy).
   - Acquiring with a different token while an active run is in flight raises PipelineLockedError.
   - Expired locks (older than stale_after_seconds) are safely reclaimed.
+
+SCOPE, EXPLICITLY: this is an IN-PROCESS lock only -- it does not reach
+across OS process boundaries the way the flock-based design it replaced
+did. That's a deliberate trade, not an oversight: each web session already
+gets its own output/<session_id>/ directory (see paths.py's own docstring),
+which had already narrowed the flock design's own real job down to "guard
+concurrent runs WITHIN one session" (its own prior docstring said so
+explicitly) -- and every deployment mode this codebase actually runs today
+(a single Flask/ADK process per backend, no multi-worker/multi-replica
+serving behind a shared output/ directory) only ever has ONE process
+touching a given session's directory at a time. The flock design's actual
+cost turned out to be real production bugs -- lock leaks, self-deadlocks,
+and heartbeat resurrection, see the fix commits this module's own git
+history carries -- which the simpler in-memory model avoids by
+construction (no stale-file-on-disk state to misinterpret, no kernel-fd
+edge cases to reason about).
+
+If a FUTURE deployment ever runs more than one OS process against the same
+session's output/ directory concurrently (e.g. a multi-worker server, or
+two separate CLI invocations pointed at the same output dir), this lock
+provides NO protection across that boundary -- each process has its own
+independent `_session_locks` dict. Revisit this docstring (and likely
+re-add a real cross-process primitive, learning from the bugs above rather
+than reverting to the exact design that caused them) before adopting such a
+deployment mode.
 """
 
 import contextvars

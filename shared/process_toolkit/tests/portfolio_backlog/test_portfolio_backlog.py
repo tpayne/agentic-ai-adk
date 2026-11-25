@@ -849,14 +849,21 @@ def test_save_coerces_non_fibonacci_priority_components(tmp_path, monkeypatch):
     assert backlog["epics"][0]["priority_components"]["risk_reduction"] == 8
 
 
-def test_save_handles_missing_priority_components(tmp_path, monkeypatch):
+def test_save_rejects_a_work_item_missing_priority_components(tmp_path, monkeypatch):
+    # CONFIRMED AS A REAL BUG, now fixed: this used to silently default a
+    # missing priority_components to {3,3,3} instead of rejecting it --
+    # fabricating prioritization data that was never actually provided.
+    # An item with NO priority_components at all must be rejected; the
+    # auto-wrapped "bare string epic/feature/story" shorthand (see
+    # test_save_handles_plain_string_epics_features_stories below) is the
+    # one deliberate exception, since it supplies its own explicit {3,3,3}
+    # default as part of expanding that intentionally-minimal shorthand.
     monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
     backlog = _sample_backlog()
     del backlog["epics"][0]["priority_components"]
     res = save_portfolio_backlog(backlog)
-    assert res.startswith("SUCCESS:")
-    assert "priority_components" in backlog["epics"][0]
-    assert backlog["epics"][0]["priority_components"]["user_business_value"] == 3
+    assert res.startswith("ERROR:")
+    assert "priority_components" in res
 
 
 def test_save_handles_string_roles_and_string_resources(tmp_path, monkeypatch):
@@ -902,14 +909,27 @@ def test_save_handles_plain_string_epics_features_stories(tmp_path, monkeypatch)
             {
                 "id": "EPIC-002",
                 "title": "Core Implementation",
+                "description": "Deliver the core platform implementation.",
+                "traces_to": ["FR-001"],
+                "priority_components": {"user_business_value": 8, "time_criticality": 5, "risk_reduction": 3},
                 "features": [
                     "Data Pipeline Feature",
                     {
                         "id": "FEAT-002",
                         "title": "API Gateway Feature",
+                        "description": "Expose core services through a managed API gateway.",
+                        "traces_to": ["FR-001"],
+                        "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
                         "stories": [
                             "Implement Auth Endpoint",
-                            {"id": "STORY-001", "title": "Configure Rate Limiting", "resources": ["Lead Architect"]},
+                            {
+                                "id": "STORY-001", "title": "Configure Rate Limiting",
+                                "description": "Apply per-client rate limits to the gateway.",
+                                "traces_to": ["FR-001"],
+                                "priority_components": {"user_business_value": 3, "time_criticality": 2, "risk_reduction": 2},
+                                "acceptance_criteria": ["Requests over the configured limit are rejected with 429."],
+                                "resources": ["Lead Architect"],
+                            },
                         ],
                     },
                 ],

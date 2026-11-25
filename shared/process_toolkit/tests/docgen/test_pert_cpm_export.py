@@ -88,6 +88,66 @@ class TestComputeCpmWithRealSlack:
         assert [a["critical"] for a in scored] == [False, False, True, True]
 
 
+class TestComputeCpmDagBranchRespectsHolidays:
+    """CONFIRMED AS A REAL BUG: the DAG backward pass's own working-day
+    arithmetic (_working_day_diff/_subtract_working_days) ignored holidays
+    entirely, unlike every other working-day function in this codebase and
+    unlike the linear branch above (whose float comes from the caller's
+    already holiday-aware gap_working_days_before). No existing test
+    exercised the DAG branch (has_dag=True, i.e. any activity carrying a
+    non-empty predecessor_uids) at all before this one."""
+
+    def test_a_holiday_inside_the_backward_walk_changes_float_and_criticality(self):
+        monday = dt.date(2026, 11, 23)  # confirmed Monday elsewhere this session
+        wednesday = monday + dt.timedelta(days=2)
+        thursday = monday + dt.timedelta(days=3)
+        friday = monday + dt.timedelta(days=4)
+
+        activities = [
+            {"uid": 1, "name": "Y", "start": monday, "finish": wednesday, "duration_days": 2},
+            {"uid": 2, "name": "Z", "start": thursday, "finish": friday, "duration_days": 1,
+             "predecessor_uids": [1]},
+        ]
+
+        # Without holidays: Z's own late_start needs no slack (duration 1
+        # subtracts 0 days), so Y's late_finish is exactly 1 working day
+        # before Friday -- Thursday -- a full day of float relative to Y's
+        # own Wednesday finish.
+        scored = _compute_cpm(activities)
+        y = next(a for a in scored if a["uid"] == 1)
+        assert y["late_finish"] == thursday
+        assert y["float_days"] == 1
+        assert y["critical"] is False
+
+        # With Thursday marked as a holiday, "1 working day before Friday"
+        # skips it and lands on Wednesday instead -- exactly Y's own
+        # forward finish, so float collapses to 0 and Y becomes critical.
+        scored_holiday = _compute_cpm(activities, holidays=frozenset({thursday}))
+        y2 = next(a for a in scored_holiday if a["uid"] == 1)
+        assert y2["late_finish"] == wednesday
+        assert y2["float_days"] == 0
+        assert y2["critical"] is True
+
+    def test_generate_pert_cpm_diagram_threads_holidays_into_the_dag_branch(self):
+        # Same scenario as above, through the real public entry point --
+        # proves holidays actually reaches _compute_cpm rather than being
+        # silently dropped at the generate_pert_cpm_diagram boundary.
+        monday = dt.date(2026, 11, 23)
+        wednesday = monday + dt.timedelta(days=2)
+        thursday = monday + dt.timedelta(days=3)
+        friday = monday + dt.timedelta(days=4)
+        activities = [
+            {"uid": 1, "name": "Y", "start": monday, "finish": wednesday, "duration_days": 2},
+            {"uid": 2, "name": "Z", "start": thursday, "finish": friday, "duration_days": 1,
+             "predecessor_uids": [1]},
+        ]
+        out_path = generate_pert_cpm_diagram(
+            activities, "Holiday DAG Plan", "holiday_dag.png", holidays=frozenset({thursday}),
+        )
+        assert os.path.exists(out_path)
+        assert os.path.getsize(out_path) > 0
+
+
 class TestGeneratePertCpmDiagram:
     def test_raises_when_no_activities(self):
         with pytest.raises(ValueError):

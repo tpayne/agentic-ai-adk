@@ -37,6 +37,7 @@ class LoopControlCodedTool(_SharedLoopControlCodedTool):
         except Exception:
             stop_pipeline_lock_heartbeat(token)
             release_pipeline_lock(token)
+            sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
             raise
         if isinstance(result, dict) and result.get("verdict") == "STOP":
             stop_pipeline_lock_heartbeat(token)

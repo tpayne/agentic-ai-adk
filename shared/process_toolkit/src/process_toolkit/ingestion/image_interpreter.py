@@ -164,7 +164,9 @@ def _make_image_part(image_bytes: bytes, mime_type: str) -> Any:
     try:
         from google.genai import types
         return types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-    except Exception:
+    except Exception as e:
+        logger.debug("Could not construct a real google.genai Part (falling back to a stub): %s", e)
+
         class _PartStub:
             def __init__(self, data: bytes, mime_type: str):
                 self.data = data
@@ -213,14 +215,30 @@ def _generate_with_model_fallback(
                 contents=contents,
             )
         except Exception as e:
-            err_str = str(e)
-            is_model_unavailable = (
-                "404" in err_str
-                or "NOT_FOUND" in err_str
-                or "not found" in err_str.lower()
-                or "no longer available" in err_str.lower()
-                or "unsupported" in err_str.lower()
-            )
+            # Prefer the SDK's own structured status (google.genai's
+            # APIError/ClientError/ServerError expose real `.code`/`.status`
+            # from the actual HTTP response) over guessing from the
+            # stringified message -- a 400 error for something unrelated to
+            # model availability (e.g. "unsupported image mime type", or a
+            # billing/auth message mentioning "project ... not found") can
+            # contain the same substrings a model-deprecation 404 does,
+            # which previously caused it to be silently retried against
+            # every fallback model instead of surfacing the real cause.
+            code = getattr(e, "code", None)
+            status = getattr(e, "status", None)
+            if code is not None or status is not None:
+                is_model_unavailable = code == 404 or str(status or "").upper() == "NOT_FOUND"
+            else:
+                # Not a structured API error (e.g. a network-level
+                # exception raised before any HTTP response) -- fall back
+                # to substring matching as a best-effort heuristic.
+                err_str = str(e)
+                is_model_unavailable = (
+                    "404" in err_str
+                    or "NOT_FOUND" in err_str
+                    or "not found" in err_str.lower()
+                    or "no longer available" in err_str.lower()
+                )
             if is_model_unavailable and model != candidate_models[-1]:
                 logger.warning(
                     "Multimodal model %s unavailable (%s); falling back to next candidate...",
@@ -315,6 +333,15 @@ def translate_image_to_process_json(
 
     if client is not None and os.path.isfile(path):
         try:
+            # Validate the file is genuinely decodable BEFORE spending a
+            # real model call on it -- matches interpret_image_with_model's
+            # own check (used by the fallback path below); without this, a
+            # corrupted/truncated file reached the API first and only got
+            # caught afterward, by which point the call was already wasted.
+            from PIL import Image
+            with Image.open(path) as img:
+                img.verify()
+
             with open(path, "rb") as f:
                 image_bytes = f.read()
 
@@ -379,6 +406,13 @@ def translate_image_to_requirements_json(
 
     if client is not None and os.path.isfile(path):
         try:
+            # Validate the file is genuinely decodable BEFORE spending a
+            # real model call on it -- see the identical check in
+            # translate_image_to_process_json for why.
+            from PIL import Image
+            with Image.open(path) as img:
+                img.verify()
+
             with open(path, "rb") as f:
                 image_bytes = f.read()
 

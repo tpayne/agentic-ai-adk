@@ -24,24 +24,25 @@ directly via `paths.output_path`, the same shape as
 `generate_proposal_roadmap_diagram`'s own `out_path = paths.output_path(...);
 plt.savefig(out_path, ...); return out_path`.
 
-Computes a genuine CPM backward pass over the chain (not a hardcoded
-"everything is critical" shortcut): the LAST activity's own Early Finish
-anchors Late Finish (float 0 by definition -- nothing follows it to create
-slack against), and each earlier activity's Late Finish/float is set from
-the ACTUAL gap before its successor PLUS whatever float that successor
-already has (a delay absorbed by shared downstream slack, not just the
-immediate gap). Today's scheduler (`docgen.project_plan_export.
-_schedule_subtree`) always produces a single serial chain with zero gaps --
-so float will currently always be zero, and every activity will be
-"critical" -- but this is computed honestly from the real gaps the caller
-supplies, not hardcoded, so it would correctly show non-zero float and a
-non-critical activity the moment any caller passes a
-`gap_working_days_before` greater than zero.
+Computes a genuine CPM backward pass (not a hardcoded "everything is
+critical" shortcut) over either shape `_compute_cpm` is handed: a plain
+linear chain (the LAST activity's own Early Finish anchors Late Finish --
+float 0 by definition, nothing follows it to create slack against -- and
+each earlier activity's Late Finish/float is set from the ACTUAL gap before
+its successor PLUS whatever float that successor already has, a delay
+absorbed by shared downstream slack, not just the immediate gap), or a real
+DAG with `predecessor_uids` (multiple activities converging on a shared
+successor, or independent parallel streams) -- see `_compute_cpm`'s own
+`has_dag` branch. Both branches are holiday-aware: the linear branch via
+the caller's own holiday-aware `gap_working_days_before`, the DAG branch
+via the `holidays` parameter threaded into `generate_pert_cpm_diagram`.
 """
 
 import datetime as _dt
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, FrozenSet, List
+
+_NO_HOLIDAYS: FrozenSet[_dt.date] = frozenset()
 
 import matplotlib as mpl
 # Must be set before pyplot is imported -- same reasoning as
@@ -65,13 +66,22 @@ _CRITICAL_COLOR = "#C0392B"
 _SLACK_COLOR = "#5C6B7A"
 
 
-def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, filename: str) -> str:
+def generate_pert_cpm_diagram(
+    activities: List[Dict[str, Any]], title: str, filename: str,
+    holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> str:
     """`activities`: chronologically ordered dicts, each {"uid", "name",
     "start": date, "finish": date, "duration_days": int,
     "gap_working_days_before": int} (the first activity's own
     `gap_working_days_before` is ignored -- there is nothing before it).
     Renders the diagram and saves it to output/<filename>. Returns the
     saved path.
+
+    `holidays` is ONLY consulted by the DAG backward pass (see
+    _compute_cpm) -- the linear/serial path's float already comes from the
+    caller's own holiday-aware `gap_working_days_before`, so threading
+    holidays through there too would be redundant. Defaults to no holidays,
+    matching every other optional-holidays parameter in this codebase.
 
     Raises ValueError if `activities` is empty -- same no-fabrication
     convention proposal_roadmap_diagram.py's own generate_proposal_
@@ -80,7 +90,7 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     if not activities:
         raise ValueError("No activities to render a PERT/CPM diagram from.")
     logger.info("generate_pert_cpm_diagram: rendering diagram %r for %d activities into %s", title, len(activities), filename)
-    scored = _compute_cpm(activities)
+    scored = _compute_cpm(activities, holidays)
     critical_count = sum(1 for a in scored if a.get("critical"))
     logger.info("generate_pert_cpm_diagram: CPM calculation complete - %d critical, %d with slack out of %d total activities", critical_count, len(scored) - critical_count, len(scored))
     all_critical = all(a["critical"] for a in scored)
@@ -260,12 +270,21 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     return out_path
 
 
-def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _compute_cpm(
+    activities: List[Dict[str, Any]], holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> List[Dict[str, Any]]:
     """Genuine backward pass, not a hardcoded shortcut -- see module
     docstring. Returns a NEW list of dicts (does not mutate the input),
     each carrying everything the input had plus "late_start", "late_finish",
     "float_days", "critical". Supports both linear sequences and DAGs with
-    predecessor_uids."""
+    predecessor_uids.
+
+    `holidays` only matters for the DAG branch below, whose backward pass
+    does its own working-day arithmetic (_working_day_diff/
+    _subtract_working_days) independently of the linear branch's -- without
+    it, a UK bank holiday inside a multi-stream plan's span was silently
+    counted as a working day, understating float by one day per holiday and
+    potentially mislabeling a genuinely critical activity as having slack."""
     scored = [dict(a) for a in activities]
     if not scored:
         return scored
@@ -306,7 +325,7 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         count = 0
         while cur < d2:
             cur += _dt.timedelta(days=1)
-            if cur.weekday() < 5:
+            if cur.weekday() < 5 and cur not in holidays:
                 count += 1
         return count
 
@@ -315,7 +334,7 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         remaining = days
         while remaining > 0:
             cur -= _dt.timedelta(days=1)
-            if cur.weekday() < 5:
+            if cur.weekday() < 5 and cur not in holidays:
                 remaining -= 1
         return cur
 

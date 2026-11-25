@@ -46,13 +46,14 @@ class InspectProjectPlanCodedTool(CodedTool):
 
         phases = []
         for st in summary_tasks:
+            duration_hours = st.get("duration_hours")
             phases.append({
-                "id": st.get("id"),
+                "id": st.get("uid"),
                 "name": st.get("name"),
                 "start": st.get("start"),
                 "finish": st.get("finish"),
-                "duration_days": st.get("duration_days"),
-                "predecessors": st.get("predecessors", []),
+                "duration_days": round(duration_hours / 8, 2) if duration_hours is not None else None,
+                "predecessors": st.get("predecessor_uids", []),
             })
 
         return {

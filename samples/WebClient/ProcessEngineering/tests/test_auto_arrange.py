@@ -68,3 +68,14 @@ def test_auto_arrange_functions_and_wiring_in_app_js():
     assert 'el.usageAutoArrangeBtn.addEventListener("click", autoArrangeUsage)' in app
     assert 'el.usageAutoArrangeZoomBtn.addEventListener("click", autoArrangeUsage)' in app
     assert 'el.chatAutoArrangeBtn.addEventListener("click", autoArrangeChat)' in app
+
+
+def test_diagrams_tab_auto_arrange_button_is_hidden_for_png_kind():
+    # CONFIRMED AS A REAL BUG: unlike cloudarchZoomControls/cloudarchExportBtn
+    # (both correctly hidden for kind "png", a flat server-rendered image
+    # with no on-screen SVG and no positions to rearrange),
+    # cloudarchAutoArrangeBtn was left visible and silently no-opped when
+    # clicked (diagramHasData() never becomes true for png kind, since
+    # loadDiagram's png branch only ever sets d.imageUrl).
+    app = (WEBCLIENT_ROOT / "public" / "app.js").read_text(encoding="utf-8")
+    assert 'el.cloudarchAutoArrangeBtn.hidden = kind === "png"' in app

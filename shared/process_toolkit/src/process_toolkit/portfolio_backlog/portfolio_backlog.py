@@ -594,12 +594,7 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
     for field in ("id", "title", "description"):
         val = item.get(field)
         if not isinstance(val, str) or not val.strip():
-            if field == "title":
-                item["title"] = f"{item_type} {item.get('id', '')}".strip()
-            elif field == "description":
-                item["description"] = f"{item.get('title') or item_type} description."
-            else:
-                raise ValueError(f"{location}.{field} must be a non-empty string.")
+            raise ValueError(f"{location}.{field} must be a non-empty string.")
 
     item["id"] = _normalize_id_format(item["id"])
     if item["id"] in seen_ids:
@@ -620,21 +615,32 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
     traces_to = item.get("traces_to")
     if isinstance(traces_to, str) and traces_to.strip():
         traces_to = [traces_to.strip()]
-    elif not isinstance(traces_to, list) or not traces_to:
-        traces_to = [item["id"]]
-    item["traces_to"] = [_normalize_id_format(str(trace).strip()) for trace in traces_to if str(trace).strip()] or [item["id"]]
+    if not isinstance(traces_to, list) or not traces_to:
+        raise ValueError(f"{location}.traces_to must contain at least one source reference.")
+    normalized_traces = [_normalize_id_format(str(trace).strip()) for trace in traces_to if str(trace).strip()]
+    if not normalized_traces:
+        raise ValueError(f"{location}.traces_to must contain at least one source reference.")
+    item["traces_to"] = normalized_traces
 
     components = item.get("priority_components")
     if not isinstance(components, dict):
-        components = {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3}
-        item["priority_components"] = components
+        raise ValueError(
+            f"{location}.priority_components must be a JSON object with user_business_value, "
+            "time_criticality, and risk_reduction."
+        )
     for field in ("user_business_value", "time_criticality", "risk_reduction"):
         val = components.get(field)
         try:
-            val_int = int(float(val)) if val is not None else 3
+            val_int = int(float(val)) if val is not None else None
         except (ValueError, TypeError):
-            val_int = 3
+            val_int = None
+        if val_int is None:
+            raise ValueError(f"{location}.priority_components.{field} must be a number.")
         if val_int not in FIBONACCI_SIZES:
+            # A genuinely-provided but off-scale value (e.g. 4) is snapped
+            # to the nearest valid size -- coercing real input onto this
+            # system's discrete scale, not fabricating a value that was
+            # never provided at all (that case raises above).
             val_int = min(FIBONACCI_SIZES, key=lambda x: abs(x - val_int))
         components[field] = val_int
 
@@ -653,10 +659,12 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
         criteria = item.get("acceptance_criteria")
         if isinstance(criteria, str) and criteria.strip():
             criteria = [criteria.strip()]
-        elif not isinstance(criteria, list) or not criteria:
-            criteria = [f"Complete {item.get('title') or 'story'} according to requirements."]
+        if not isinstance(criteria, list) or not criteria:
+            raise ValueError(f"{location}.acceptance_criteria must contain at least one non-empty string.")
         norm_criteria = [str(c).strip() for c in criteria if str(c).strip()]
-        item["acceptance_criteria"] = norm_criteria or [f"Complete {item.get('title') or 'story'} according to requirements."]
+        if not norm_criteria:
+            raise ValueError(f"{location}.acceptance_criteria must contain at least one non-empty string.")
+        item["acceptance_criteria"] = norm_criteria
 
 
 def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
@@ -720,6 +728,8 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 "description": title,
                 "strategic_theme": "Delivery",
                 "job_size": 13,
+                "traces_to": ["REQ-001"],
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
                 "features": [],
             }
             epics[epic_index - 1] = epic
@@ -734,6 +744,8 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 "title": f"{epic.get('title', 'Feature')} Delivery",
                 "description": epic.get("description", "Feature delivery"),
                 "job_size": 3,
+                "traces_to": epic.get("traces_to", ["REQ-001"]),
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
                 "stories": [],
             }]
             epic["features"] = features
@@ -751,6 +763,8 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                     "title": title,
                     "description": title,
                     "job_size": 3,
+                    "traces_to": epic.get("traces_to", ["REQ-001"]),
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
                     "stories": [],
                 }
                 features[feature_index - 1] = feature
@@ -766,6 +780,7 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                     "description": feature.get("description", "Work package execution"),
                     "job_size": 3,
                     "traces_to": feature.get("traces_to", ["REQ-001"]),
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
                     "acceptance_criteria": [f"Successfully complete {feature.get('title', 'work package')}."],
                 }]
                 feature["stories"] = stories
@@ -784,6 +799,7 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                         "description": title,
                         "job_size": 3,
                         "traces_to": feature.get("traces_to", ["REQ-001"]),
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
                         "acceptance_criteria": [f"Successfully complete {title}."],
                     }
                     stories[story_index - 1] = story
