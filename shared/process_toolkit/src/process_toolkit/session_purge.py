@@ -16,6 +16,15 @@ stop_session_purge_thread() run that sweep on a fixed interval for as
 long as a -d process is up, modeled directly on run_lock.py's own
 _LockHeartbeat -- same daemon=True + Event-based wait loop + bounded
 join on stop, same idempotent-per-caller bookkeeping.
+
+Both removal paths (the automatic sweep and the explicit single-session
+drop) also clear that session's in-memory server-log buffer
+(session_logs.py's own SessionLogHandler) -- CONFIRMED AS A REAL BUG:
+that buffer used to be cleared only on the explicit-drop path, so every
+session nobody explicitly deleted (the common case per the first
+paragraph above) left a permanent entry behind for the life of the
+process -- the exact unbounded-growth problem this module exists to
+prevent, reintroduced in memory instead of on disk.
 """
 
 import json
@@ -31,6 +40,18 @@ from werkzeug.utils import safe_join
 from process_toolkit import paths
 
 logger = logging.getLogger("ProcessArchitect.SessionPurge")
+
+
+def _clear_session_logs(session_id: str) -> None:
+    """Best-effort: drop session_logs.py's own in-memory buffer for a
+    session whose output directory was just removed. Imported lazily
+    (not at module load time) since session_logs.py is a sibling, not a
+    dependency this module otherwise needs."""
+    try:
+        from process_toolkit.session_logs import clear_session_logs
+        clear_session_logs(session_id)
+    except Exception:
+        pass
 
 
 def _read_last_active(session_dir: str) -> Optional[float]:
@@ -93,6 +114,7 @@ def purge_stale_sessions(
         try:
             shutil.rmtree(session_dir)
             removed.append(name)
+            _clear_session_logs(name)
         except OSError:
             logger.warning("Could not remove stale session directory %s.", session_dir)
 
@@ -129,10 +151,11 @@ def purge_session(session_id: str) -> bool:
         return False
     try:
         shutil.rmtree(session_dir)
-        return True
     except OSError:
         logger.warning("Could not remove session directory %s.", session_dir)
         return False
+    _clear_session_logs(sanitized)
+    return True
 
 
 _purge_thread: Optional["_PurgeThread"] = None

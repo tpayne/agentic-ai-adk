@@ -268,6 +268,24 @@
     usageDetailList: document.getElementById("usageDetailList"),
     usageDetailCloseBtn: document.getElementById("usageDetailCloseBtn"),
 
+    logsTabPanel: document.getElementById("logsTabPanel"),
+    logsTabBadge: document.getElementById("logsTabBadge"),
+    logsLevelSelect: document.getElementById("logsLevelSelect"),
+    logsSearchInput: document.getElementById("logsSearchInput"),
+    logsClearSearchBtn: document.getElementById("logsClearSearchBtn"),
+    logsAutoRefresh: document.getElementById("logsAutoRefresh"),
+    logsRefreshBtn: document.getElementById("logsRefreshBtn"),
+    logsCopyBtn: document.getElementById("logsCopyBtn"),
+    logsClearViewBtn: document.getElementById("logsClearViewBtn"),
+    logsStatusBar: document.getElementById("logsStatusBar"),
+    logsSessionInfo: document.getElementById("logsSessionInfo"),
+    logsCountInfo: document.getElementById("logsCountInfo"),
+    logsContainerWrap: document.getElementById("logsContainerWrap"),
+    logsEmpty: document.getElementById("logsEmpty"),
+    logsEmptyTitle: document.getElementById("logsEmptyTitle"),
+    logsEmptyText: document.getElementById("logsEmptyText"),
+    logsList: document.getElementById("logsList"),
+
     toast: null,
   };
 
@@ -402,6 +420,14 @@
     autoDetectedModel: null,
     view: { x: 0, y: 0, scale: 1 },
     autoFit: true,
+  };
+
+  // The Server Logs tab's data -- scoped strictly to state.sessionId,
+  // showing server-side logs with credentials redacted.
+  state.logs = {
+    entries: [],
+    loading: false,
+    autoRefreshTimer: null,
   };
 
   // ---------------------------------------------------------------
@@ -859,6 +885,13 @@
     el.sessionIdLabel.title = id ? summarizeSessionForTooltip(state.transcript) : "";
     el.deleteSessionBtn.disabled = state.isSending || !state.sessionId;
     saveState({ sessionId: state.sessionId });
+    if (typeof updateLogsSessionDisplay === "function") {
+      updateLogsSessionDisplay();
+    }
+    const activeTab = document.querySelector(".tab-btn.active")?.dataset?.tab;
+    if (activeTab === "logs" && typeof loadServerLogs === "function") {
+      loadServerLogs();
+    }
   }
 
   // Shared by newChat/deleteSession below -- clears everything runtime-only
@@ -873,6 +906,9 @@
     state.transcript = [];
     resetNetwork();
     resetUsage();
+    if (typeof clearLocalLogsView === "function") {
+      clearLocalLogsView();
+    }
   }
 
   // "+ New chat" deliberately does NOT delete the old session anymore --
@@ -1423,10 +1459,12 @@
     el.artifactsTabPanel.hidden = name !== "artifacts";
     el.cloudarchTabPanel.hidden = name !== "cloudarch";
     el.usageTabPanel.hidden = name !== "usage";
+    if (el.logsTabPanel) el.logsTabPanel.hidden = name !== "logs";
 
     if (name !== "network") closeNodeDetail();
     if (name !== "artifacts") closeArtifactDetail();
     if (name !== "usage") closeUsageDetail();
+    if (name !== "logs") stopLogsAutoRefresh();
 
     if (name === "network") {
       // The SVG's viewBox is sized from el.networkCanvasWrap's own
@@ -1459,6 +1497,9 @@
       // Same reason as the network tab above -- the SVG was sized 0x0
       // while this panel was hidden.
       renderUsageChart();
+    } else if (name === "logs") {
+      loadServerLogs();
+      startLogsAutoRefresh();
     }
   }
 
@@ -5617,6 +5658,230 @@
   if (el.chatAutoArrangeBtn) el.chatAutoArrangeBtn.addEventListener("click", autoArrangeChat);
 
   // ---------------------------------------------------------------
+  // Server Logs
+  // ---------------------------------------------------------------
+  function updateLogsSessionDisplay() {
+    if (el.logsSessionInfo) {
+      el.logsSessionInfo.innerHTML = `Session: <code>${escapeHtml(state.sessionId || "none")}</code>`;
+    }
+  }
+
+  function startLogsAutoRefresh() {
+    stopLogsAutoRefresh();
+    if (!el.logsAutoRefresh || !el.logsAutoRefresh.checked) return;
+    state.logs.autoRefreshTimer = setInterval(() => {
+      const activeTab = document.querySelector(".tab-btn.active")?.dataset?.tab;
+      if (activeTab === "logs" && !state.logs.loading) {
+        loadServerLogs({ silent: true });
+      }
+    }, 3000);
+  }
+
+  function stopLogsAutoRefresh() {
+    if (state.logs.autoRefreshTimer) {
+      clearInterval(state.logs.autoRefreshTimer);
+      state.logs.autoRefreshTimer = null;
+    }
+  }
+
+  async function loadServerLogs(options = {}) {
+    updateLogsSessionDisplay();
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      showLogsEmpty("Connect to server", "Set a backend Base URL in the sidebar and click Connect first.");
+      return;
+    }
+    if (!state.sessionId) {
+      showLogsEmpty("No active session", "Send a message on the Chat tab to start a session and view server log output.");
+      return;
+    }
+
+    const silent = Boolean(options.silent);
+    if (!silent) {
+      state.logs.loading = true;
+    }
+
+    try {
+      const level = el.logsLevelSelect ? el.logsLevelSelect.value : "all";
+      const search = (el.logsSearchInput ? el.logsSearchInput.value : "").trim();
+      const url = withSessionIdParam(`${baseUrl}/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}`);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { ...authHeaders() },
+      });
+
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 400) {
+          const data = await res.json().catch(() => ({}));
+          showLogsEmpty("No logs found", data.error || "No log entries found for this session.");
+          return;
+        }
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+
+      const payload = await res.json();
+      const logs = Array.isArray(payload.logs) ? payload.logs : [];
+      state.logs.entries = logs;
+      renderServerLogs(logs, payload.total_count);
+    } catch (err) {
+      if (!silent) {
+        showLogsEmpty("Unable to fetch logs", `Error: ${err.message}`);
+      }
+    } finally {
+      state.logs.loading = false;
+    }
+  }
+
+  function showLogsEmpty(title, text) {
+    if (el.logsEmpty && el.logsList) {
+      if (el.logsEmptyTitle) el.logsEmptyTitle.textContent = title;
+      if (el.logsEmptyText) el.logsEmptyText.textContent = text;
+      el.logsEmpty.hidden = false;
+      el.logsList.hidden = true;
+      el.logsList.innerHTML = "";
+    }
+    if (el.logsCountInfo) {
+      el.logsCountInfo.textContent = "0 entries";
+    }
+    if (el.logsTabBadge) {
+      el.logsTabBadge.hidden = true;
+    }
+  }
+
+  function renderServerLogs(logs, totalCount) {
+    if (!logs || logs.length === 0) {
+      showLogsEmpty("No logs match filter", "Try changing the level filter or clearing the search query.");
+      return;
+    }
+
+    el.logsEmpty.hidden = true;
+    el.logsList.hidden = false;
+    el.logsList.innerHTML = "";
+
+    let errorCount = 0;
+    let warnCount = 0;
+
+    const frag = document.createDocumentFragment();
+    logs.forEach((entry) => {
+      const lvl = (entry.level || "INFO").toUpperCase();
+      if (lvl === "ERROR" || lvl === "CRITICAL") errorCount++;
+      if (lvl === "WARNING" || lvl === "WARN") warnCount++;
+
+      const row = document.createElement("div");
+      row.className = `log-entry level-${lvl.toLowerCase()}`;
+
+      const ts = document.createElement("span");
+      ts.className = "log-timestamp";
+      ts.textContent = entry.timestamp || "";
+
+      const badge = document.createElement("span");
+      let badgeClass = "log-badge-info";
+      if (lvl === "ERROR" || lvl === "CRITICAL") badgeClass = "log-badge-error";
+      else if (lvl === "WARNING" || lvl === "WARN") badgeClass = "log-badge-warning";
+      else if (lvl === "DEBUG") badgeClass = "log-badge-debug";
+      badge.className = `log-badge ${badgeClass}`;
+      badge.textContent = lvl;
+
+      row.appendChild(ts);
+      row.appendChild(badge);
+
+      if (entry.logger) {
+        const logger = document.createElement("span");
+        logger.className = "log-logger";
+        logger.textContent = `[${entry.logger}]`;
+        row.appendChild(logger);
+      }
+
+      const msg = document.createElement("span");
+      msg.className = "log-message";
+      msg.textContent = entry.message || "";
+      row.appendChild(msg);
+
+      frag.appendChild(row);
+    });
+
+    el.logsList.appendChild(frag);
+
+    const countText = totalCount !== undefined && totalCount !== logs.length
+      ? `${logs.length} of ${totalCount} entries`
+      : `${logs.length} entries`;
+    if (el.logsCountInfo) el.logsCountInfo.textContent = countText;
+
+    if (el.logsTabBadge) {
+      if (errorCount > 0) {
+        el.logsTabBadge.textContent = String(errorCount);
+        el.logsTabBadge.hidden = false;
+      } else {
+        el.logsTabBadge.hidden = true;
+      }
+    }
+  }
+
+  function copyServerLogsToClipboard() {
+    if (!state.logs.entries || state.logs.entries.length === 0) {
+      toast("No logs to copy.");
+      return;
+    }
+    const lines = state.logs.entries.map((e) =>
+      `[${e.timestamp || ""}] [${(e.level || "INFO").toUpperCase()}] [${e.logger || ""}] ${e.message || ""}`
+    );
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      toast("Logs copied to clipboard.");
+    }).catch(() => {
+      toast("Failed to copy logs to clipboard.");
+    });
+  }
+
+  function clearLocalLogsView() {
+    state.logs.entries = [];
+    showLogsEmpty("Log view cleared", "Click Refresh to re-fetch logs from the server.");
+  }
+
+  let logSearchDebounceTimer = null;
+  function handleLogsSearchInput() {
+    const val = el.logsSearchInput.value;
+    if (el.logsClearSearchBtn) {
+      el.logsClearSearchBtn.hidden = !val;
+    }
+    clearTimeout(logSearchDebounceTimer);
+    logSearchDebounceTimer = setTimeout(() => {
+      loadServerLogs();
+    }, 250);
+  }
+
+  if (el.logsLevelSelect) {
+    el.logsLevelSelect.addEventListener("change", () => loadServerLogs());
+  }
+  if (el.logsSearchInput) {
+    el.logsSearchInput.addEventListener("input", handleLogsSearchInput);
+  }
+  if (el.logsClearSearchBtn) {
+    el.logsClearSearchBtn.addEventListener("click", () => {
+      el.logsSearchInput.value = "";
+      el.logsClearSearchBtn.hidden = true;
+      loadServerLogs();
+    });
+  }
+  if (el.logsRefreshBtn) {
+    el.logsRefreshBtn.addEventListener("click", () => loadServerLogs());
+  }
+  if (el.logsAutoRefresh) {
+    el.logsAutoRefresh.addEventListener("change", () => {
+      if (el.logsAutoRefresh.checked) {
+        startLogsAutoRefresh();
+      } else {
+        stopLogsAutoRefresh();
+      }
+    });
+  }
+  if (el.logsCopyBtn) {
+    el.logsCopyBtn.addEventListener("click", copyServerLogsToClipboard);
+  }
+  if (el.logsClearViewBtn) {
+    el.logsClearViewBtn.addEventListener("click", clearLocalLogsView);
+  }
+
+  // ---------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------
   function init() {
@@ -5641,6 +5906,7 @@
     setStatus("unknown", "Not connected");
     renderNetwork();
     renderUsageChart();
+    updateLogsSessionDisplay();
     el.messageInput.focus();
   }
 

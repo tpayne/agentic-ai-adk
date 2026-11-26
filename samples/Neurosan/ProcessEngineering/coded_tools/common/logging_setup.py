@@ -121,4 +121,10 @@ def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
 
     _quiet_known_noisy_third_party_loggers(file_handler)
 
+    try:
+        from process_interface.session_logs import install_session_log_handler
+        install_session_log_handler()
+    except Exception:
+        pass
+
     return logger

@@ -2426,3 +2426,59 @@ class TestOpenAgenticWebNetworkPublishing:
         assert client.get("/networks/agent_network_editor.network.json").status_code == 404
         assert client.get("/networks/totally_made_up.network.json").status_code == 404
 
+
+class TestSessionLogsEndpoint:
+    """Tests for GET /logs and GET /chat/<session_id>/logs."""
+
+    def _client(self):
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_logs_requires_session_id(self):
+        client = self._client()
+        resp = client.get("/logs")
+        assert resp.status_code == 400
+        assert "session_id parameter is required" in resp.get_json()["error"]
+
+    def test_logs_retrieval_and_filtering(self):
+        from process_interface.session_logs import record_session_log
+        client = self._client()
+        sid = f"test-log-session-{uuid.uuid4().hex[:8]}"
+
+        record_session_log(sid, "INFO", "Informational startup message")
+        record_session_log(sid, "WARNING", "Warning about quota approaching")
+        record_session_log(sid, "ERROR", "Critical error with key AIzaSyD-1234567890abcdefghijklmnopqrstuv")
+
+        # GET /logs?session_id=...
+        resp = client.get(f"/logs?session_id={sid}&level=all")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert data["total_count"] == 3
+        assert len(data["logs"]) == 3
+        # Sensitive key is redacted
+        assert "AIzaSyD" not in data["logs"][2]["message"]
+        assert "[REDACTED_API_KEY]" in data["logs"][2]["message"]
+
+        # Level filter: error
+        resp_err = client.get(f"/logs?session_id={sid}&level=error")
+        assert resp_err.status_code == 200
+        data_err = resp_err.get_json()
+        assert len(data_err["logs"]) == 1
+        assert data_err["logs"][0]["level"] == "ERROR"
+
+        # Search filter
+        resp_search = client.get(f"/logs?session_id={sid}&search=quota")
+        assert resp_search.status_code == 200
+        data_search = resp_search.get_json()
+        assert len(data_search["logs"]) == 1
+        assert "quota approaching" in data_search["logs"][0]["message"]
+
+        # GET /chat/<session_id>/logs route parity
+        resp_path = client.get(f"/chat/{sid}/logs")
+        assert resp_path.status_code == 200
+        data_path = resp_path.get_json()
+        assert data_path["session_id"] == sid
+        assert len(data_path["logs"]) == 3
+
+

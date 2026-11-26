@@ -5,6 +5,7 @@ import time
 import pytest
 
 from process_toolkit import paths, session_purge
+from process_toolkit.session_logs import get_session_log_handler, record_session_log
 from process_toolkit.session_purge import (
     purge_session,
     purge_stale_sessions,
@@ -113,6 +114,38 @@ def test_purge_session_removes_an_existing_session_immediately_regardless_of_sta
 
 def test_purge_session_on_a_nonexistent_session_returns_false():
     assert purge_session("never-existed") is False
+
+
+def test_purge_session_also_clears_that_session_s_in_memory_log_buffer():
+    # CONFIRMED AS A REAL BUG: clear_session_logs used to be the explicit
+    # DELETE-route caller's own responsibility, never purge_session's --
+    # now centralized here so every removal path clears it the same way.
+    sid = "logged-and-explicitly-dropped"
+    _make_session(sid, last_active=time.time())
+    record_session_log(sid, "INFO", "hello")
+    assert sid in get_session_log_handler()._session_buffers
+
+    assert purge_session(sid) is True
+    assert sid not in get_session_log_handler()._session_buffers
+
+
+def test_purge_stale_sessions_also_clears_the_removed_session_s_log_buffer():
+    # Same bug, automatic-sweep path: this is the path that actually
+    # mattered, since most sessions are abandoned rather than explicitly
+    # dropped (see this module's own docstring) -- a session's log buffer
+    # used to live forever once that happened.
+    sid = "logged-and-swept-away"
+    # record_session_log first -- it internally touches the session (via
+    # paths.use_session), which bumps last_active to now. Backdating
+    # last_active has to happen AFTER that, not before, or the session
+    # would no longer look stale by the time the sweep runs.
+    record_session_log(sid, "INFO", "hello")
+    _make_session(sid, last_active=time.time() - 10_000)
+    assert sid in get_session_log_handler()._session_buffers
+
+    removed = purge_stale_sessions(max_age_seconds=3600)
+    assert removed == [sid]
+    assert sid not in get_session_log_handler()._session_buffers
 
 
 def test_purge_session_rejects_a_malicious_id_rather_than_escaping_output_dir():

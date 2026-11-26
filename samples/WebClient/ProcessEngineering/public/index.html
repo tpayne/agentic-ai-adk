@@ -125,6 +125,10 @@
       <button type="button" class="tab-btn" data-tab="artifacts" role="tab" aria-selected="false">Artefact Browser</button>
       <button type="button" class="tab-btn" data-tab="cloudarch" role="tab" aria-selected="false">Diagrams</button>
       <button type="button" class="tab-btn" data-tab="usage" role="tab" aria-selected="false">Token Usage</button>
+      <button type="button" class="tab-btn" data-tab="logs" role="tab" aria-selected="false">
+        Server Logs
+        <span class="tab-badge" id="logsTabBadge" hidden>0</span>
+      </button>
     </nav>
 
     <div class="tab-panel" id="chatTabPanel" role="tabpanel">
@@ -580,6 +584,68 @@
           <div class="node-detail-context" id="usageDetailContext"></div>
           <div class="node-detail-list" id="usageDetailList"></div>
         </aside>
+      </div>
+    </div>
+
+    <div class="tab-panel logs-panel" id="logsTabPanel" role="tabpanel" hidden>
+      <div class="logs-toolbar">
+        <div class="logs-filter-group">
+          <label for="logsLevelSelect" class="field-label">Level</label>
+          <select id="logsLevelSelect" class="logs-select" aria-label="Log level filter">
+            <option value="all" selected>All Levels</option>
+            <option value="info">INFO</option>
+            <option value="warning">WARNING</option>
+            <option value="error">ERROR</option>
+          </select>
+        </div>
+        <div class="logs-search-group">
+          <label for="logsSearchInput" class="field-label">Filter</label>
+          <div class="logs-search-wrap">
+            <input type="text" id="logsSearchInput" class="logs-input" placeholder="Search logs…" aria-label="Search logs">
+            <button type="button" class="logs-clear-search-btn" id="logsClearSearchBtn" title="Clear filter" aria-label="Clear filter" hidden>&times;</button>
+          </div>
+        </div>
+        <div class="logs-actions">
+          <label class="logs-auto-refresh-toggle" title="Auto-refresh every 3s while active">
+            <input type="checkbox" id="logsAutoRefresh" checked>
+            <span>Auto-refresh</span>
+          </label>
+          <button type="button" class="icon-btn" id="logsRefreshBtn" title="Refresh logs" aria-label="Refresh logs">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13.5 8A5.5 5.5 0 1 1 12 4.1L13.5 2.5V6.5H9.5"></path>
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" id="logsCopyBtn" title="Copy logs to clipboard" aria-label="Copy logs">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="5" width="8" height="8" rx="1.5"></rect>
+              <path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H11"></path>
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" id="logsClearViewBtn" title="Clear log view" aria-label="Clear log view">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 4h10"></path>
+              <path d="M6.5 4V2.5h3V4"></path>
+              <path d="M4.5 4l.6 9a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-9"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="logs-statusbar" id="logsStatusBar">
+        <span class="logs-session-info" id="logsSessionInfo">Session: <code>none</code></span>
+        <span class="logs-count-info" id="logsCountInfo">0 entries</span>
+      </div>
+
+      <div class="logs-container-wrap" id="logsContainerWrap">
+        <div class="empty-state" id="logsEmpty">
+          <div class="empty-state-mark">PA</div>
+          <h2 id="logsEmptyTitle">No logs yet</h2>
+          <p id="logsEmptyText">
+            Logs generated during your active session turns will appear here in real-time.
+            Any sensitive credentials or API keys are automatically redacted.
+          </p>
+        </div>
+        <div class="logs-list" id="logsList" hidden></div>
       </div>
     </div>
   </main>

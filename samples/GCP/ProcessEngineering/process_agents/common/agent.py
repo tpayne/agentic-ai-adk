@@ -201,6 +201,11 @@ logger = logging.getLogger("ProcessArchitect")
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 logger.propagate = False
+try:
+    from process_interface.session_logs import install_session_log_handler
+    install_session_log_handler()
+except Exception:
+    pass
 logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
 
 LOGLEVEL = getProperty("LOGLEVEL")
@@ -1672,6 +1677,44 @@ def build_web_app(https: bool = True):
         except ValueError:
             pass  # session_id didn't look like a real session directory name -- nothing to remove
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
+
+    @web_app.route("/logs", methods=["GET"])
+    @web_app.route("/chat/<session_id>/logs", methods=["GET"])
+    def get_logs(session_id=None):
+        from process_interface.session_logs import get_session_log_entries
+        from process_interface import paths as toolkit_paths
+
+        sid = session_id or _web_session_id_for_get_request()
+        if not sid:
+            return jsonify({
+                "status": "error",
+                "error": "session_id parameter is required",
+            }), 400
+        try:
+            toolkit_paths.sanitize_session_id(sid)
+        except ValueError:
+            return jsonify({
+                "status": "error",
+                "error": "Invalid session_id format",
+            }), 400
+
+        level = request.args.get("level", "all")
+        search = request.args.get("search", "")
+        limit_str = request.args.get("limit", "500")
+        try:
+            limit = int(limit_str)
+        except (ValueError, TypeError):
+            limit = 500
+
+        res = get_session_log_entries(session_id=sid, level=level, search=search, limit=limit)
+        return jsonify({
+            "status": "ok",
+            "session_id": sid,
+            "level": level,
+            "search": search,
+            "total_count": res["total_count"],
+            "logs": res["logs"],
+        })
 
     @web_app.route("/.well-known/agent.json", methods=["GET"])
     def agent_manifest():

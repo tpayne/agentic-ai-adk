@@ -176,6 +176,11 @@ from process_interface.run_lock import (  # noqa: E402
     stop_pipeline_lock_heartbeat,
 )
 from process_interface.session_purge import purge_session, start_session_purge_thread  # noqa: E402
+from process_interface.session_logs import (  # noqa: E402
+    get_session_log_entries,
+    install_session_log_handler,
+    record_session_log,
+)
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
     copy_artifact_to_destination,
@@ -1720,6 +1725,7 @@ def build_web_app(agent_name: str, https: bool = True):
     from flask import Flask, request, jsonify, make_response, Response, send_file
 
     web_app = Flask("ProcessArchitectWebServiceNS")
+    install_session_log_handler()
     web_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
     # Rejects an oversized request at the WSGI layer, before Flask reads any
     # of its body -- see MAX_REQUEST_BODY_BYTES's own comment for why this
@@ -2006,6 +2012,41 @@ def build_web_app(agent_name: str, https: bool = True):
         return jsonify({
             "status": "ok", "session_id": session_id,
             "cleared": existed or persisted_state_removed,
+        })
+
+    @web_app.route("/logs", methods=["GET"])
+    @web_app.route("/chat/<session_id>/logs", methods=["GET"])
+    def get_logs(session_id=None):
+        sid = session_id or _web_session_id_for_get_request()
+        if not sid:
+            return jsonify({
+                "status": "error",
+                "error": "session_id parameter is required",
+            }), 400
+        try:
+            paths.sanitize_session_id(sid)
+        except ValueError:
+            return jsonify({
+                "status": "error",
+                "error": "Invalid session_id format",
+            }), 400
+
+        level = request.args.get("level", "all")
+        search = request.args.get("search", "")
+        limit_str = request.args.get("limit", "500")
+        try:
+            limit = int(limit_str)
+        except (ValueError, TypeError):
+            limit = 500
+
+        res = get_session_log_entries(session_id=sid, level=level, search=search, limit=limit)
+        return jsonify({
+            "status": "ok",
+            "session_id": sid,
+            "level": level,
+            "search": search,
+            "total_count": res["total_count"],
+            "logs": res["logs"],
         })
 
     @web_app.route("/.well-known/agent.json", methods=["GET"])
