@@ -157,6 +157,40 @@ def test_build_cloudarch_vsdx_exports_vertices_and_edges_from_saved_diagram():
     assert "API Gateway -- Database" in extracted or "Database -- API Gateway" in extracted
 
 
+def test_build_cloudarch_vsdx_strips_html_markup_from_vertex_labels():
+    # CONFIRMED AS A REAL BUG against a live session's own generated .vsdx:
+    # cloudarch_layout_engine.py's own _html_value builds every real
+    # component's "value" as "<b>Label</b><br/><font style=...>bullet</font>",
+    # and this export used to pass that raw HTML straight through as the
+    # Visio shape's plain text -- every box showed literal "<b>"/"<br/>"/
+    # "<font style=..." markup instead of a clean label.
+    xml = (
+        '<mxGraphModel><root>'
+        '<mxCell id="0"/><mxCell id="1" parent="0"/>'
+        '<mxCell id="armor" '
+        'value="&lt;b&gt;Google Cloud Armor&lt;/b&gt;&lt;br/&gt;'
+        '&lt;font style=&quot;font-size:10px;color:#5f6368&quot;&gt;WAF &amp; DDoS Protection&lt;/font&gt;" '
+        'vertex="1" parent="1" style="shape=mxgraph.gcp2.cloud_armor;"/>'
+        '<mxCell id="run" value="&lt;b&gt;Cloud Run Service&lt;/b&gt;" vertex="1" parent="1" '
+        'style="shape=mxgraph.gcp2.cloud_run;"/>'
+        '<mxCell id="e1" edge="1" source="armor" target="run" parent="1"/>'
+        '</root></mxGraphModel>'
+    )
+    with open(paths.output_path(DRAWIO_FILENAME), "w", encoding="utf-8") as f:
+        f.write(xml)
+
+    result = build_cloudarch_vsdx()
+    out_path = result.removeprefix("Visio diagram successfully exported to ")
+
+    with VisioFile(out_path) as vis:
+        texts = {(s.text or "").strip() for s in vis.pages[0].all_shapes if (s.text or "").strip()}
+
+    assert "Google Cloud Armor\nWAF & DDoS Protection" in texts
+    assert "Cloud Run Service" in texts
+    for text in texts:
+        assert "<" not in text and ">" not in text
+
+
 class TestParseVsdxToGraph:
     def test_round_trips_real_vertices_and_edges(self):
         out_path = paths.output_path("fixture_flow.vsdx")

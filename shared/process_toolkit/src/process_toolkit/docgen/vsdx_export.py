@@ -402,6 +402,24 @@ def build_process_design_vsdx(schema_type: str) -> str:
     return f"Visio diagram successfully exported to {out_path}"
 
 
+_DRAWIO_BR_RE = re.compile(r"(?i)<br\s*/?>")
+_DRAWIO_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _drawio_value_to_plain_text(value: str) -> str:
+    """A cloudarch vertex's raw drawio "value" is HTML -- `<b>Label</b>
+    <br/><font style="...">bullet</font>...`, the same markup cloudarch/
+    layout.py's own _html_value constructs and cloudarch/finops.py's own
+    _split_label_and_bullets already un-does for cost analysis. Visio shape
+    text is plain text only: CONFIRMED AS A REAL BUG against a live
+    session's own exported .vsdx -- every box's text was the raw HTML
+    string verbatim (literal "<b>", "<br/>", "<font style=...>" substrings
+    visible in Visio), passed straight through with no stripping.
+    """
+    text = _DRAWIO_BR_RE.sub("\n", value or "")
+    return _DRAWIO_TAG_RE.sub("", text).strip()
+
+
 def build_cloudarch_vsdx() -> str:
     """Exports the current saved cloud architecture diagram as a Visio
     file. Parses the already-saved cloudarch_drawio.xml (the same source
@@ -415,7 +433,10 @@ def build_cloudarch_vsdx() -> str:
         return "ERROR: No saved cloud architecture diagram found. Generate one first."
 
     graph = parse_drawio_graph(loaded["xml"])
-    label_map = {v["id"]: (v.get("value") or v["id"]) for v in graph.get("vertices", [])}
+    label_map = {}
+    for v in graph.get("vertices", []):
+        plain = _drawio_value_to_plain_text(v.get("value"))
+        label_map[v["id"]] = plain or v["id"]
     if not label_map:
         return "ERROR: The saved cloud architecture diagram has no components to export."
     edges = [

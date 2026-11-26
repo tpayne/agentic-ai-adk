@@ -271,13 +271,13 @@ class TestLayoutOverlap:
             ]
 
         zones = [
-            {"id": "z0a", "row": 0, "stack": "horizontal"},
-            {"id": "z0b", "row": 0, "stack": "horizontal"},
-            {"id": "z1a", "row": 1, "stack": "horizontal"},
-            {"id": "z1b", "row": 1, "stack": "horizontal"},
-            {"id": "z2a", "row": 2, "stack": "horizontal"},
-            {"id": "z3a", "row": 3, "stack": "horizontal"},
-            {"id": "z3b", "row": 3, "stack": "horizontal"},
+            {"id": "z0a", "label": "Z0A", "row": 0, "stack": "horizontal"},
+            {"id": "z0b", "label": "Z0B", "row": 0, "stack": "horizontal"},
+            {"id": "z1a", "label": "Z1A", "row": 1, "stack": "horizontal"},
+            {"id": "z1b", "label": "Z1B", "row": 1, "stack": "horizontal"},
+            {"id": "z2a", "label": "Z2A", "row": 2, "stack": "horizontal"},
+            {"id": "z3a", "label": "Z3A", "row": 3, "stack": "horizontal"},
+            {"id": "z3b", "label": "Z3B", "row": 3, "stack": "horizontal"},
         ]
         components = (
             comps("z0a", 2) + comps("z0b", 4) + comps("z1a", 4) + comps("z1b", 2)
@@ -319,10 +319,10 @@ class TestVerticalZonesDoNotStretch:
 
     def _mismatched_rows(self):
         zones = [
-            {"id": "small_a", "row": 0},
-            {"id": "small_b", "row": 0},
-            {"id": "wide_a", "row": 1, "stack": "horizontal"},
-            {"id": "wide_b", "row": 1, "stack": "horizontal"},
+            {"id": "small_a", "label": "Small A", "row": 0},
+            {"id": "small_b", "label": "Small B", "row": 0},
+            {"id": "wide_a", "label": "Wide A", "row": 1, "stack": "horizontal"},
+            {"id": "wide_b", "label": "Wide B", "row": 1, "stack": "horizontal"},
         ]
         components = [
             {"id": "sa_c1", "zone_id": "small_a", "label": "X"},
@@ -386,10 +386,10 @@ class TestVerticalZonesDoNotStretch:
 
     def test_mixed_row_only_stretches_the_horizontal_sibling(self):
         zones = [
-            {"id": "v1", "row": 0},
-            {"id": "h1", "row": 0, "stack": "horizontal"},
-            {"id": "wide_a", "row": 1, "stack": "horizontal"},
-            {"id": "wide_b", "row": 1, "stack": "horizontal"},
+            {"id": "v1", "label": "V1", "row": 0},
+            {"id": "h1", "label": "H1", "row": 0, "stack": "horizontal"},
+            {"id": "wide_a", "label": "Wide A", "row": 1, "stack": "horizontal"},
+            {"id": "wide_b", "label": "Wide B", "row": 1, "stack": "horizontal"},
         ]
         components = [
             {"id": "v1_c1", "zone_id": "v1", "label": "X"},
@@ -1600,6 +1600,30 @@ class TestBuildXml:
                 title="T", subtitle="",
                 zones=[{"label": "Nameless Zone"}],
                 components=[],
+                edges=[],
+            )
+
+    def test_zone_missing_only_label_is_named_by_its_own_id(self):
+        # Regression test, confirmed directly against a real
+        # save_drawio_structured_tool call in a live session: a validly
+        # nested zone (real "id", real "parent_zone_id") missing only
+        # "label" slipped past this function entirely (it never checked
+        # "label" at all) and crashed with a bare, uninformative
+        # `KeyError: 'label'` deep inside _render_zone_cell.
+        with pytest.raises(ValueError, match="zone 'z1' is missing a real, non-empty 'label'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1"}],
+                components=[],
+                edges=[],
+            )
+
+    def test_component_missing_only_label_is_named_by_its_own_id(self):
+        with pytest.raises(ValueError, match="component 'c1' is missing a real, non-empty 'label'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[{"id": "c1", "zone_id": "z1"}],
                 edges=[],
             )
 

@@ -447,11 +447,11 @@ class _Box:
 
 def _validate_required_fields(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
     """
-    Every zone needs a real, non-empty "id"; every component needs a
-    real, non-empty "id" AND "zone_id". Must run FIRST, before any other
-    validation in this module -- confirmed directly against a real
-    generated request: _validate_unique_ids's own duplicate-id detection,
-    _validate_zone_nesting's by_id lookup, and
+    Every zone needs a real, non-empty "id" AND "label"; every component
+    needs a real, non-empty "id", "zone_id", AND "label". Must run FIRST,
+    before any other validation in this module -- confirmed directly
+    against a real generated request: _validate_unique_ids's own
+    duplicate-id detection, _validate_zone_nesting's by_id lookup, and
     _validate_component_zone_ids's own bad-zone_id detection all filter
     OUT an entry with a missing "id" (a missing id can never be a
     duplicate or a dangling reference, so none of those checks have any
@@ -462,13 +462,25 @@ def _validate_required_fields(zones: List[Dict[str, Any]], components: List[Dict
     component, or that "id" was missing too. Catching it here, by
     position (there's no id yet to name it by), before any of those
     other checks run, is the fix.
+
+    "label" joined this check after a second, separately CONFIRMED REAL
+    BUG: a live save_drawio_structured_tool call supplied a validly-nested
+    zone (real "id", real "parent_zone_id") missing only "label", sailed
+    straight through this function unnoticed, and crashed with a bare
+    `KeyError: 'label'` deep inside _render_zone_cell -- every other field
+    this function already checks, "label" never was.
     """
     problems: List[str] = []
     for i, z in enumerate(zones):
         if not isinstance(z, dict):
             problems.append(f"zones[{i}] must be an object, not {type(z).__name__}")
-        elif not z.get("id"):
+            continue
+        zid = z.get("id")
+        name = f"zone '{zid}'" if zid else f"zones[{i}]"
+        if not zid:
             problems.append(f"zones[{i}] is missing a real, non-empty 'id'")
+        if not z.get("label"):
+            problems.append(f"{name} is missing a real, non-empty 'label'")
     for i, c in enumerate(components):
         if not isinstance(c, dict):
             problems.append(f"components[{i}] must be an object, not {type(c).__name__}")
@@ -479,11 +491,13 @@ def _validate_required_fields(zones: List[Dict[str, Any]], components: List[Dict
             problems.append(f"components[{i}] is missing a real, non-empty 'id'")
         if not c.get("zone_id"):
             problems.append(f"{name} is missing a real, non-empty 'zone_id'")
+        if not c.get("label"):
+            problems.append(f"{name} is missing a real, non-empty 'label'")
     if problems:
         raise ValueError(
-            "Every zone needs a real, non-empty 'id'; every component needs a real, "
-            "non-empty 'id' AND 'zone_id' -- " + "; ".join(problems) + ". Add the "
-            "missing field(s) and retry."
+            "Every zone needs a real, non-empty 'id' AND 'label'; every component needs "
+            "a real, non-empty 'id', 'zone_id', AND 'label' -- " + "; ".join(problems) +
+            ". Add the missing field(s) and retry."
         )
 
 
