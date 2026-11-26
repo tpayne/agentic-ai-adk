@@ -733,6 +733,27 @@ class TestImportImageTool:
         assert result["target_type"] == "process"
         assert "Approval Workflow" in result["data"]["process_name"]
 
+    async def test_import_image_base64_cloudarch(self, tmp_path):
+        import io
+        from PIL import Image, ImageDraw
+        img = Image.new("RGB", (300, 100), color="white")
+        draw = ImageDraw.Draw(img)
+        draw.text((10, 30), "AWS Ingress Lambda Storage", fill="black")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "import_image",
+                {"image_base64": encoded, "filename": "cloud_arch.png", "target_type": "cloudarch", "session_id": "img_arch_s1"},
+            )).data
+
+        assert result["status"] == "OK"
+        assert result["target_type"] == "cloudarch"
+        assert "<mxfile" in result["xml"]
+        assert result["artifact_path"].endswith("cloudarch_drawio.xml")
+
     async def test_import_image_missing_inputs_raises_tool_error(self):
         async with Client(server.mcp) as client:
             with pytest.raises(Exception, match="Either image_base64 or image_path"):

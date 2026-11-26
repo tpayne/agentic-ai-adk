@@ -579,17 +579,18 @@ def import_image(
 ) -> dict:
     """Imports a JPG/PNG process diagram, flowchart, or architecture spec image,
     interprets it with a multimodal model (or OCR fallback), translates it to the
-    canonical process or requirements JSON schema, and persists it for `session_id`.
+    canonical process, requirements, or cloud architecture Draw.io schema, and persists it for `session_id`.
 
     Provide either `image_base64` (base64-encoded image data) or `image_path`
     (path on server filesystem).
-    `target_type` must be "process" or "requirements".
+    `target_type` must be "process", "requirements", or "cloudarch".
     """
     if not image_base64 and not image_path:
         raise ToolError("Either image_base64 or image_path must be provided.")
 
-    if target_type not in ("process", "requirements"):
-        raise ToolError(f"Invalid target_type: {target_type!r}. Must be 'process' or 'requirements'.")
+    target = (target_type or "process").lower().strip()
+    if target not in ("process", "requirements", "cloudarch", "architecture", "drawio"):
+        raise ToolError(f"Invalid target_type: {target_type!r}. Must be 'process', 'requirements', or 'cloudarch'.")
 
     with _session(session_id):
         if image_base64:
@@ -601,11 +602,11 @@ def import_image(
             with open(tmp_path, "wb") as f:
                 f.write(data)
             try:
-                return _import_image(tmp_path, target_type=target_type, session_id=session_id)
+                return _import_image(tmp_path, target_type=target, session_id=session_id)
             finally:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
         else:
-            return _import_image(image_path, target_type=target_type, session_id=session_id)
+            return _import_image(image_path, target_type=target, session_id=session_id)
 
 
 @mcp.tool

@@ -11,6 +11,7 @@ shared here.
 
 import logging
 import os
+import xml.etree.ElementTree as ET
 
 from process_toolkit import paths
 
@@ -39,6 +40,32 @@ def load_drawio_xml() -> dict:
         # otherwise invisible server-side.
         logger.error("Failed to read %s: %s", path, e, exc_info=True)
         return {"status": "ERROR", "xml": None, "error": str(e)}
+
+
+def save_drawio_xml(xml_content: str) -> dict:
+    """Validates well-formedness of `xml_content` and writes it to
+    output/cloudarch_drawio.xml."""
+    path = paths.output_path(DRAWIO_FILENAME)
+    try:
+        ET.fromstring(xml_content)
+    except Exception as e:
+        return {"status": "ERROR", "error": f"Invalid XML provided: {e}"}
+
+    out_dir = os.path.dirname(path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as existing:
+                if existing.read().strip() == xml_content.strip():
+                    return {"status": "OK", "message": f"The file {path} is unchanged."}
+        except Exception:
+            logger.debug("Could not compare existing %s for no-op write check.", path, exc_info=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(xml_content)
+    return {"status": "OK", "message": f"The file {path} was saved successfully."}
 
 
 def reset_drawio_xml() -> None:

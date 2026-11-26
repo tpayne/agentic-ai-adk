@@ -30,6 +30,7 @@ def test_router_mentions_image_import():
     assert "workflow.png" in router_text
     assert "Process_Import_Agent" in router_text
     assert "Requirements_Summary_Agent" in router_text
+    assert "CloudArch_Import_Agent" in router_text
 
 
 def test_process_import_hocon_mentions_image_interpretation():
@@ -43,6 +44,12 @@ def test_requirements_summary_hocon_mentions_image_interpretation():
     req_hocon = (PROJECT_ROOT / "registries" / "requirements_summary.hocon").read_text(encoding="utf-8")
     assert "multimodal model" in req_hocon
     assert "specifications" in req_hocon
+
+
+def test_cloudarch_import_hocon_mentions_image_interpretation():
+    arch_hocon = (PROJECT_ROOT / "registries" / "cloudarch_import.hocon").read_text(encoding="utf-8")
+    assert "architecture image" in arch_hocon
+    assert "import_image" in arch_hocon
 
 
 def test_load_directory_context_coded_tool_accepts_image_file():
@@ -75,3 +82,19 @@ def test_import_image_tool_execution():
         req_result = import_image(str(img_path), target_type="requirements")
         assert req_result["status"] == "OK"
         assert "Incident Management" in req_result["data"]["name"]
+
+        arch_result = import_image(str(img_path), target_type="cloudarch")
+        assert arch_result["status"] == "OK"
+        assert arch_result["target_type"] == "cloudarch"
+        assert "<mxfile" in arch_result["xml"]
+        assert Path(arch_result["artifact_path"]).exists()
+
+
+def test_cloudarch_import_image_coded_tool():
+    from coded_tools.cloudarch_import.import_image_tool import ImportImageCodedTool
+    with tempfile.TemporaryDirectory() as d:
+        img_path = _create_test_image(Path(d) / "infra.png", "Microservices Architecture")
+        tool = ImportImageCodedTool()
+        res = tool.invoke({"path": str(img_path)}, {})
+        assert res["status"] == "OK"
+        assert "<mxfile" in res["xml"]

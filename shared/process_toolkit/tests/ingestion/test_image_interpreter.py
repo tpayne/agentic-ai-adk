@@ -15,6 +15,7 @@ from process_toolkit.ingestion.image_interpreter import (
     SUPPORTED_IMAGE_EXTENSIONS,
     import_image,
     interpret_image_with_model,
+    translate_image_to_cloudarch_drawio,
     translate_image_to_process_json,
     translate_image_to_requirements_json,
 )
@@ -279,6 +280,57 @@ def test_import_image_end_to_end_requirements():
         with open(result["artifact_path"]) as f:
             saved = json.load(f)
         assert "Mobile App Spec" in saved["name"]
+
+
+def test_import_image_end_to_end_cloudarch():
+    with tempfile.TemporaryDirectory() as d:
+        session_id = "test-session-image-cloudarch"
+        img_path = _create_test_image(Path(d) / "serverless_arch.png", "AWS API Gateway Lambda DynamoDB")
+
+        with patch("process_toolkit.ingestion.image_interpreter._get_genai_client", return_value=None):
+            result = import_image(str(img_path), target_type="cloudarch", session_id=session_id)
+
+        assert result["status"] == "OK"
+        assert result["target_type"] == "cloudarch"
+        assert os.path.exists(result["artifact_path"])
+        assert result["artifact_path"].endswith("cloudarch_drawio.xml")
+        assert "<mxfile" in result["xml"]
+        with open(result["artifact_path"], encoding="utf-8") as f:
+            saved_xml = f.read()
+        assert "<mxfile" in saved_xml
+
+
+def test_translate_image_to_cloudarch_drawio_structured_json():
+    with tempfile.TemporaryDirectory() as d:
+        img_path = _create_test_image(Path(d) / "payment_arch.png", "Payment Processing")
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = json.dumps({
+            "title": "Payment Microservices Architecture",
+            "subtitle": "Secure payment processing platform",
+            "provider": "aws",
+            "zones": [
+                {"id": "zone_ingress", "name": "Ingress Zone", "type": "zone"},
+                {"id": "zone_app", "name": "Payment VPC", "type": "vpc"},
+            ],
+            "components": [
+                {"id": "c_gateway", "name": "API Gateway", "zone_id": "zone_ingress", "icon": "api_gateway", "bullets": ["Edge Ingress"]},
+                {"id": "c_lambda", "name": "Payment Lambda", "zone_id": "zone_app", "icon": "lambda", "bullets": ["Card Authorization"]},
+            ],
+            "edges": [
+                {"source": "c_gateway", "target": "c_lambda", "label": "HTTPS/POST"},
+            ],
+        })
+        mock_client.models.generate_content.return_value = mock_response
+
+        with patch("process_toolkit.ingestion.image_interpreter._get_genai_client", return_value=mock_client):
+            drawio_xml = translate_image_to_cloudarch_drawio(str(img_path))
+
+        assert "<mxfile" in drawio_xml
+        assert "Payment Microservices Architecture" in drawio_xml
+        assert "API Gateway" in drawio_xml
+        assert "Payment Lambda" in drawio_xml
 
 
 def test_import_image_validations():

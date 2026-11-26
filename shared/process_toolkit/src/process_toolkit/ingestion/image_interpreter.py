@@ -12,8 +12,11 @@ import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
+import xml.etree.ElementTree as ET
 
 from process_toolkit import paths
+from process_toolkit.cloudarch.layout import build_structured_drawio_xml
+from process_toolkit.drawio.persistence import DRAWIO_FILENAME, save_drawio_xml
 from process_toolkit.schema.process_json import (
     PROCESS_TEMPLATE,
     extract_valid_json,
@@ -109,6 +112,37 @@ Extract every distinct functional requirement as a numbered item (FR-001, FR-002
 - Potential risks, edge cases, or failure modes depicted.
 
 Be thorough, faithful to all diagram elements, and capture all text, connectors, and implied rules."""
+
+_CLOUDARCH_INTERPRETATION_PROMPT = """You are a Principal Cloud Solutions Architect.
+Visually inspect the provided architecture diagram / cloud infrastructure image and extract the complete architectural topology, components, zones, boundaries, and connections.
+
+Structure your response with the following sections:
+[Architecture Overview]
+- Title: Specific descriptive name of the architecture depicted.
+- Subtitle / Summary: High-level overview of the cloud workload, primary cloud provider (AWS, Azure, GCP, or hybrid), and core architectural tiers.
+- Cloud Provider: Identify whether the architecture is primarily "aws", "azure", or "gcp".
+
+[Zones and Boundaries]
+Identify all network boundaries, trust zones, tiers, or VPCs/VNets (e.g., Client/Internet Zone, DMZ/Ingress, VPC Application Tier, Data/Database Tier, Management/Shared Services).
+For each zone:
+- Zone ID (e.g., zone_ingress, zone_vpc, zone_data)
+- Name / Label (e.g., Public Subnet, Application VPC, Managed Data Services)
+- Type: "vpc" if it represents a main VPC / Virtual Network container boundary; otherwise "zone".
+
+[Components and Services]
+List every cloud service, server, load balancer, database, queue, or node depicted:
+- Component ID (e.g., comp_alb, comp_api, comp_db)
+- Name / Service Label (e.g., Application Load Balancer, Microservices Cluster, Aurora PostgreSQL)
+- Zone ID: Which zone it resides in
+- Description / Bullet Points: 1-2 brief bullet points detailing its role or configuration
+- Icon / Service Hint: Specific provider icon hint (e.g., alb, lambda, ec2, s3, rds, api_gateway, blob_storage, aks, bigquery, etc.)
+
+[Connections and Data Flow]
+Trace all network connections, arrows, API calls, and data flows between components:
+- Source Component ID -> Target Component ID
+- Label / Protocol (e.g., HTTPS, gRPC, JDBC, Pub/Sub, Read Replica)
+
+Be thorough and faithfully preserve all labels, service names, and directional connections shown in the image."""
 
 _GENERAL_INTERPRETATION_PROMPT = """You are an expert Technical Architect and Business Analyst.
 Visually inspect the provided image (diagram, flowchart, architecture map, wireframe, or document scan) and provide a detailed, structured extraction covering:
@@ -298,6 +332,8 @@ def interpret_image_with_model(
                 prompt = _PROCESS_INTERPRETATION_PROMPT
             elif target == "requirements":
                 prompt = _REQUIREMENTS_INTERPRETATION_PROMPT
+            elif target in ("cloudarch", "architecture", "drawio"):
+                prompt = _CLOUDARCH_INTERPRETATION_PROMPT
             else:
                 prompt = _GENERAL_INTERPRETATION_PROMPT
 
@@ -454,22 +490,317 @@ def translate_image_to_requirements_json(
     return _build_requirements_json_from_text(path, text_content)
 
 
+def _build_cloudarch_drawio_from_text(image_path: str, text: str) -> str:
+    """Constructs a valid structured drawio XML document from extracted text / OCR."""
+    base_name = os.path.splitext(os.path.basename(image_path))[0].replace("_", " ").title()
+    text_lower = (text or "").lower()
+
+    if any(k in text_lower for k in ("aws", "amazon", "ec2", "s3", "lambda", "dynamodb")):
+        provider = "aws"
+    elif any(k in text_lower for k in ("gcp", "google", "bigquery", "cloud run", "gke")):
+        provider = "gcp"
+    else:
+        provider = "azure"
+
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    candidates: List[str] = []
+    for line in lines:
+        cleaned = re.sub(r"^[0-9]+[\.\)\-]\s*", "", line).strip()
+        cleaned = re.sub(r"^[-*•]\s*", "", cleaned).strip()
+        if (
+            3 < len(cleaned) < 60
+            and not cleaned.startswith("[")
+            and not cleaned.endswith(":")
+            and not any(cleaned.lower().startswith(p) for p in ("title", "subtitle", "purpose", "overview", "note"))
+        ):
+            candidates.append(cleaned)
+
+    # De-duplicate while preserving order
+    seen = set()
+    unique_candidates: List[str] = []
+    for c in candidates:
+        if c.lower() not in seen:
+            seen.add(c.lower())
+            unique_candidates.append(c)
+
+    if not unique_candidates:
+        unique_candidates = [f"{base_name} Service", f"{base_name} Processing", f"{base_name} Storage"]
+
+    if len(unique_candidates) >= 4:
+        zones = [
+            {"id": "zone_ingress", "label": "Ingress & Edge", "name": "Ingress & Edge", "type": "zone"},
+            {"id": "zone_workload", "label": f"{base_name} VPC", "name": f"{base_name} VPC", "type": "vpc"},
+        ]
+        split_idx = min(2, len(unique_candidates) // 2)
+        components: List[Dict[str, Any]] = []
+        for i, name in enumerate(unique_candidates[:8]):
+            zid = "zone_ingress" if i < split_idx else "zone_workload"
+            components.append({
+                "id": f"comp_{i+1}",
+                "label": name,
+                "name": name,
+                "zone_id": zid,
+                "bullets": [f"{name} service node"],
+            })
+    else:
+        zones = [{"id": "zone_workload", "label": f"{base_name} Workload", "name": f"{base_name} Workload", "type": "vpc"}]
+        components = [
+            {
+                "id": f"comp_{i+1}",
+                "label": name,
+                "name": name,
+                "zone_id": "zone_workload",
+                "bullets": [f"{name} component"],
+            }
+            for i, name in enumerate(unique_candidates[:6])
+        ]
+
+    edges: List[Dict[str, Any]] = []
+    for i in range(len(components) - 1):
+        edges.append({
+            "source": components[i]["id"],
+            "target": components[i+1]["id"],
+            "label": "Connects To",
+        })
+
+    title = f"{base_name} Architecture"
+    subtitle = f"Imported architecture diagram from {os.path.basename(image_path)}"
+
+    try:
+        return build_structured_drawio_xml(
+            title=title,
+            subtitle=subtitle,
+            zones=zones,
+            components=components,
+            edges=edges,
+            provider=provider,
+        )
+    except Exception as e:
+        logger.warning("Structured layout failed for %s (%s); returning fallback mxfile: %s", image_path, e, e)
+        return (
+            '<mxfile host="Electron">\n'
+            f'  <diagram id="architecture" name="{title[:30]}">\n'
+            '    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0" background="#FFFFFF">\n'
+            '      <root>\n'
+            '        <mxCell id="0"/>\n'
+            '        <mxCell id="1" parent="0"/>\n'
+            f'        <mxCell id="title" value="&lt;b&gt;{title}&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;" vertex="1" parent="1">\n'
+            '          <mxGeometry x="40" y="40" width="400" height="40" as="geometry"/>\n'
+            '        </mxCell>\n'
+            '      </root>\n'
+            '    </mxGraphModel>\n'
+            '  </diagram>\n'
+            '</mxfile>'
+        )
+
+
+def translate_image_to_cloudarch_drawio(
+    path: str,
+    model_name: Optional[str] = None,
+) -> str:
+    """Translates a JPG/PNG cloud architecture diagram/picture into a valid Draw.io XML document.
+
+    Uses a multimodal model to inspect architectural tiers, network zones, service components,
+    and connectors, rendering canonical, non-overlapping Draw.io XML via the structured layout engine.
+    """
+    client = _get_genai_client()
+    ext = os.path.splitext(path)[1].lower()
+    mime_type = IMAGE_MIME_TYPES.get(ext, "image/png")
+    base_name = os.path.splitext(os.path.basename(path))[0].replace("_", " ").title()
+
+    if client is not None and os.path.isfile(path):
+        try:
+            from PIL import Image
+            with Image.open(path) as img:
+                img.verify()
+
+            with open(path, "rb") as f:
+                image_bytes = f.read()
+
+            image_part = _make_image_part(image_bytes, mime_type)
+
+            prompt = (
+                "You are a Principal Cloud Solutions Architect. Visually analyze this architecture diagram / "
+                "cloud infrastructure picture and translate it directly into structured JSON matching the cloud architecture schema below.\n\n"
+                "SCHEMA REFERENCE TEMPLATE:\n"
+                "{\n"
+                '  "title": "Architecture Title",\n'
+                '  "subtitle": "Brief architectural overview",\n'
+                '  "provider": "aws", // "aws", "azure", or "gcp"\n'
+                '  "zones": [\n'
+                '    {"id": "zone_ingress", "name": "Ingress & Edge", "type": "zone"},\n'
+                '    {"id": "zone_app", "name": "Application VPC", "type": "vpc"}\n'
+                '  ],\n'
+                '  "components": [\n'
+                '    {"id": "c_gateway", "name": "API Gateway", "zone_id": "zone_ingress", "icon": "api_gateway", "bullets": ["REST Ingress"]},\n'
+                '    {"id": "c_svc", "name": "App Service", "zone_id": "zone_app", "icon": "app_service", "bullets": ["Core API Logic"]}\n'
+                '  ],\n'
+                '  "edges": [\n'
+                '    {"source": "c_gateway", "target": "c_svc", "label": "HTTPS"}\n'
+                '  ]\n'
+                "}\n\n"
+                "MANDATORY STRUCTURAL RULES:\n"
+                "1. 'title': Specific descriptive title of the architecture.\n"
+                "2. 'provider': 'aws', 'azure', or 'gcp' matching the primary cloud provider depicted.\n"
+                "3. 'zones': Non-empty list of zone objects. Each zone MUST have 'id' (unique string) and 'name'. "
+                "   Set 'type': 'vpc' for VPC / Virtual Network boundaries.\n"
+                "4. 'components': Non-empty list of component objects. Each component MUST have 'id' (unique string), "
+                "   'name' (service/node label), 'zone_id' (must match one of the zones' 'id'), and 'bullets' (list of 1-2 plain strings).\n"
+                "5. 'edges': List of edge objects with 'source' and 'target' matching component ids, and optional 'label'.\n"
+                "6. Alternatively, if the diagram is already a Draw.io/mxGraph XML model, you may return the raw <mxfile>...</mxfile> document.\n"
+                "7. Return ONLY the JSON object or XML document. Do not wrap in markdown or include conversational text."
+            )
+
+            model = _resolve_model_name(model_name)
+            logger.info("Translating image %s to cloud architecture Draw.io XML using %s...", path, model)
+            response = _generate_with_model_fallback(
+                client=client,
+                primary_model=model,
+                contents=[image_part, prompt],
+            )
+            raw_text = (response.text or "").strip()
+
+            # Case A: Model returned raw mxfile XML directly
+            if "<mxfile" in raw_text and "</mxfile>" in raw_text:
+                start = raw_text.find("<mxfile")
+                end = raw_text.rfind("</mxfile>") + len("</mxfile>")
+                candidate_xml = raw_text[start:end].strip()
+                try:
+                    ET.fromstring(candidate_xml)
+                    return candidate_xml
+                except Exception:
+                    pass
+
+            # Case B: Model returned structured JSON
+            parsed = extract_valid_json(raw_text)
+            if parsed and isinstance(parsed, dict) and ("components" in parsed or "zones" in parsed):
+                title = str(parsed.get("title") or f"{base_name} Architecture").strip()
+                subtitle = parsed.get("subtitle")
+                if subtitle is not None:
+                    subtitle = str(subtitle).strip()
+
+                provider = str(parsed.get("provider") or "azure").strip().lower()
+                if provider not in ("aws", "azure", "gcp"):
+                    provider = "azure"
+
+                raw_zones = parsed.get("zones")
+                zones: List[Dict[str, Any]] = []
+                seen_zone_ids = set()
+                if isinstance(raw_zones, list):
+                    for i, z in enumerate(raw_zones):
+                        if isinstance(z, dict):
+                            zid = str(z.get("id") or f"zone_{i+1}").strip()
+                            zname = str(z.get("label") or z.get("name") or f"Zone {i+1}").strip()
+                            if zid not in seen_zone_ids:
+                                seen_zone_ids.add(zid)
+                                zone_obj: Dict[str, Any] = {"id": zid, "label": zname, "name": zname}
+                                if z.get("type"):
+                                    zone_obj["type"] = str(z["type"]).strip()
+                                if z.get("parent_id") and str(z["parent_id"]).strip() in seen_zone_ids:
+                                    zone_obj["parent_id"] = str(z["parent_id"]).strip()
+                                zones.append(zone_obj)
+
+                if not zones:
+                    zones = [{"id": "zone_workload", "label": f"{base_name} VPC", "name": f"{base_name} VPC", "type": "vpc"}]
+                    seen_zone_ids.add("zone_workload")
+
+                default_zid = zones[0]["id"]
+
+                raw_components = parsed.get("components")
+                components: List[Dict[str, Any]] = []
+                seen_comp_ids = set()
+                if isinstance(raw_components, list):
+                    for i, c in enumerate(raw_components):
+                        if isinstance(c, dict):
+                            cid = str(c.get("id") or f"comp_{i+1}").strip()
+                            while cid in seen_zone_ids or cid in seen_comp_ids or not cid:
+                                cid = f"comp_{len(seen_comp_ids)+1}"
+                            seen_comp_ids.add(cid)
+
+                            cname = str(c.get("label") or c.get("name") or f"Service {i+1}").strip()
+                            czone = str(c.get("zone_id") or default_zid).strip()
+                            if czone not in seen_zone_ids:
+                                czone = default_zid
+
+                            raw_bullets = c.get("bullets")
+                            bullets: List[str] = []
+                            if isinstance(raw_bullets, list):
+                                for b in raw_bullets:
+                                    if isinstance(b, str) and b.strip():
+                                        bullets.append(b.strip())
+                                    elif isinstance(b, dict) and b.get("description"):
+                                        bullets.append(str(b["description"]).strip())
+                            if not bullets:
+                                bullets = [f"{cname} component"]
+
+                            comp_obj: Dict[str, Any] = {
+                                "id": cid,
+                                "label": cname,
+                                "name": cname,
+                                "zone_id": czone,
+                                "bullets": bullets[:3],
+                            }
+                            if c.get("icon"):
+                                comp_obj["icon"] = str(c["icon"]).strip()
+                            components.append(comp_obj)
+
+                if not components:
+                    components = [{
+                        "id": "comp_1",
+                        "name": f"{base_name} Service",
+                        "zone_id": default_zid,
+                        "bullets": [f"{base_name} workload component"],
+                    }]
+                    seen_comp_ids.add("comp_1")
+
+                raw_edges = parsed.get("edges")
+                edges: List[Dict[str, Any]] = []
+                if isinstance(raw_edges, list):
+                    for e in raw_edges:
+                        if isinstance(e, dict):
+                            src = str(e.get("source") or "").strip()
+                            tgt = str(e.get("target") or "").strip()
+                            if src in seen_comp_ids and tgt in seen_comp_ids and src != tgt:
+                                edge_obj: Dict[str, Any] = {"source": src, "target": tgt}
+                                if e.get("label"):
+                                    edge_obj["label"] = str(e["label"]).strip()
+                                edges.append(edge_obj)
+
+                xml_out = build_structured_drawio_xml(
+                    title=title,
+                    subtitle=subtitle,
+                    zones=zones,
+                    components=components,
+                    edges=edges,
+                    provider=provider,
+                )
+                ET.fromstring(xml_out)
+                return xml_out
+        except Exception as e:
+            logger.warning("Model translation of %s to Draw.io XML failed: %s; synthesizing from interpretation", path, e)
+
+    # Fallback path: interpret image (model or OCR) and construct compliant structured Draw.io XML
+    text_content = interpret_image_with_model(path, target="cloudarch", model_name=model_name)
+    return _build_cloudarch_drawio_from_text(path, text_content)
+
+
 def import_image(
     path: str,
     target_type: str = "process",
     session_id: Optional[str] = None,
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Imports an image file (JPG/PNG) and translates it into the specified JSON artifact.
+    """Imports an image file (JPG/PNG) and translates it into the specified artifact.
 
     Args:
         path: Path to the image file.
-        target_type: "process" (for process_data.json) or "requirements" (for requirements_summary.json).
+        target_type: Target schema/artifact: "process" (process_data.json),
+            "requirements" (requirements_summary.json), or "cloudarch" (cloudarch_drawio.xml).
         session_id: Optional session identifier for isolated output storage.
         model_name: Optional model name override.
 
     Returns:
-        Dict reporting status, target_type, saved artifact path, and data payload.
+        Dict reporting status, target_type, saved artifact path, and data/xml payload.
     """
     resolved = os.path.abspath(path)
     if not os.path.isfile(resolved):
@@ -480,8 +811,8 @@ def import_image(
         return {"status": "ERROR", "error": f"Unsupported image extension '{ext}'. Supported: {sorted(SUPPORTED_IMAGE_EXTENSIONS)}"}
 
     target = (target_type or "process").lower().strip()
-    if target not in ("process", "requirements"):
-        return {"status": "ERROR", "error": f"Invalid target_type '{target_type}'. Expected 'process' or 'requirements'."}
+    if target not in ("process", "requirements", "cloudarch", "architecture", "drawio"):
+        return {"status": "ERROR", "error": f"Invalid target_type '{target_type}'. Expected 'process', 'requirements', or 'cloudarch'."}
 
     # Context management for session isolation if session_id provided
     cm = paths.use_session(session_id) if session_id else None
@@ -502,7 +833,7 @@ def import_image(
                 "artifact_path": artifact_file,
                 "data": data,
             }
-        else:
+        elif target == "requirements":
             data = translate_image_to_requirements_json(resolved, model_name=model_name)
             save_result = save_requirements_summary(data)
             if save_result.startswith("ERROR:"):
@@ -514,6 +845,20 @@ def import_image(
                 "image_path": resolved,
                 "artifact_path": artifact_file,
                 "data": data,
+            }
+        else:  # cloudarch, architecture, drawio
+            xml_data = translate_image_to_cloudarch_drawio(resolved, model_name=model_name)
+            save_result = save_drawio_xml(xml_data)
+            if save_result.get("status") == "ERROR":
+                return {"status": "ERROR", "error": save_result.get("error", "Failed to save drawio XML"), "xml": xml_data}
+            artifact_file = paths.output_path(DRAWIO_FILENAME)
+            return {
+                "status": "OK",
+                "target_type": "cloudarch",
+                "image_path": resolved,
+                "artifact_path": artifact_file,
+                "xml": xml_data,
+                "data": {"xml": xml_data},
             }
     finally:
         if cm:

@@ -16,11 +16,12 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML export, typically one previously downloaded from this toolkit) verbatim as the active diagram, ready for use by every other cloud-architecture network.",
+        "description": "Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML export or an imported architecture picture/image) as the active diagram, ready for use by every other cloud-architecture network.",
         "tags": ["cloudarch", "process-engineering-port", "import"],
         "sample_queries": [
             "Use this architectural diagram for further questions.",
-            "Import the cloud architecture diagram in ./old-diagrams as the current one."
+            "Import the cloud architecture diagram in ./old-diagrams as the current one.",
+            "Import the architecture picture in ./architecture.png as a cloud architecture diagram."
         ]
     },
 
@@ -31,9 +32,8 @@
             "function": {
                 "description": """
 I restore an already-existing cloud architecture diagram -- a drawio/mxGraph XML file, typically one
-previously downloaded from this same toolkit -- as the active diagram, VERBATIM, with no
-re-interpretation. Not for building a new diagram from a written description (that's the regular
-cloud-architecture generation path). Tell me which directory to read.
+previously downloaded from this same toolkit, OR an architecture image/picture (JPG/PNG, visually
+interpreted into a Draw.io XML model) -- as the active diagram. Tell me which directory or image to read.
 """,
                 "parameters": {
                     "type": "object",
@@ -60,17 +60,20 @@ or invent one.
 - "status": "OK" but "files_processed" is EMPTY -> report that no usable content was found (list
   "files_skipped" reasons if any) and stop. Do not fabricate, do not persist anything.
 
-# STEP 2: IDENTIFY THE DIAGRAM FILE
-Look through "files_processed" for a file whose own content -- the text under its "===
-<filename> ===" heading in "combined_text" -- IS drawio/mxGraph XML: it starts with "<mxfile" or
-contains "<mxGraphModel" or "<mxCell". That is the diagram to restore.
-- If no file's content matches, report that none of the uploaded/read files look like a drawio/
-  mxGraph diagram export and stop. Do not fabricate, do not persist anything.
-- If more than one file matches, ask the user which one they mean rather than guessing. Do not
-  blend content from more than one file.
-- If exactly one matches, that file's content -- from immediately after its own "===
-  <filename> ===" heading up to the next such heading or the end of combined_text -- is the XML to
-  restore in STEP 4. Copy it EXACTLY; do not reformat, re-indent, or alter a single character.
+# STEP 2: IDENTIFY THE DIAGRAM OR ARCHITECTURE IMAGE FILE
+Look through "files_processed" for:
+1. A file whose own content -- the text under its "=== <filename> ===" heading in "combined_text" --
+   IS drawio/mxGraph XML: it starts with "<mxfile" or contains "<mxGraphModel" or "<mxCell".
+2. OR an image file (.png, .jpg, .jpeg, etc.) depicting a cloud architecture diagram.
+
+- If an architecture image is found:
+  After checking overwrite safety in STEP 3, call import_image with path set to that image file and
+  target_type="cloudarch".
+- If exactly one drawio XML file matches:
+  That file's content -- from immediately after its own "=== <filename> ===" heading up to the next such
+  heading or the end of combined_text -- is the XML to restore in STEP 4. Copy it EXACTLY; do not reformat.
+- If no file matches either criteria, report that none of the files look like a diagram or architecture picture and stop.
+- If more than one file matches, ask the user which one they mean rather than guessing.
 
 # STEP 3: CHECK FOR AN EXISTING DIAGRAM (OVERWRITE SAFETY)
 Call load_drawio. If it returns "status": "OK" with a non-empty "xml" (an actual existing diagram),
@@ -78,31 +81,26 @@ this import would overwrite it. Unless the user's OWN request in THIS turn alrea
 to overwrite/replace/proceed anyway (e.g. "overwrite the existing diagram", "replace it", "import
 anyway", or this is a follow-up turn where you already asked and the user just confirmed), STOP
 here: tell the user a cloud architecture diagram already exists and ask whether to overwrite it with
-this import. Do NOT call restore_drawio_xml in that case -- wait for their next message.
+this import. Do NOT call restore_drawio_xml or import_image in that case -- wait for their next message.
 
-# STEP 4: RESTORE VERBATIM
-Call restore_drawio_xml with xml_content set to EXACTLY the text identified in STEP 2 -- byte for
-byte, no re-generation, no re-formatting, no added/removed whitespace. If it returns an error (the
-content wasn't actually well-formed XML despite looking like it), report that error to the user
-verbatim and stop -- do not attempt to fix or guess at the XML yourself.
+# STEP 4: RESTORE VERBATIM OR IMPORT IMAGE
+- For a drawio XML file: call restore_drawio_xml with xml_content set to EXACTLY the text identified
+  in STEP 2 -- byte for byte, no re-generation, no re-formatting.
+- For an architecture image file: call import_image with path set to the image file and
+  target_type="cloudarch".
+
+If it returns an error, report that error to the user verbatim and stop.
 
 # STEP 5: REPORT BACK
-Reply in plain prose (no raw XML, no code blocks): which file was restored as the cloud architecture
-diagram. ALSO describe what it actually depicts -- its main components and how they connect --
-using ONLY what is actually present in the XML you just restored (same grounding discipline as
-CloudArch_Consultant_Agent: derive a component's identity from its own "value" (label) and
-"shape=mxgraph.<provider>.<name>" style token; never invent a component, connection, or purpose
-that isn't really there). This is not optional even when the user's own request only asked you to
-restore/keep it -- confirmed as a real production bug: a request combining "review this... tell me
-what it does" with "keep it for future use" was routed here correctly for the restore half, but
-with no description of the diagram's actual content, the "tell me what it does" half went
-unanswered. Close by noting it's now the active diagram, available to every other cloud-architecture
-tool (consultant, simulation, attack simulation, cost estimation) -- and that if they want it
-reviewed the way a freshly-generated diagram is, they can ask to update/regenerate it next.
+Reply in plain prose (no raw XML, no code blocks): which file was restored or imported as the cloud
+architecture diagram. ALSO describe what it actually depicts -- its main components and how they
+connect -- using ONLY what is actually present in the restored/imported diagram. Close by noting it's
+now the active diagram, available to every other cloud-architecture tool (consultant, simulation,
+attack simulation, cost estimation).
 
 Do not output the XML as chat text -- it belongs only inside tool calls.
 """,
-            "tools": ["load_directory_context", "load_drawio", "restore_drawio_xml"]
+            "tools": ["load_directory_context", "load_drawio", "restore_drawio_xml", "import_image"]
         },
         {
             "name": "load_directory_context",
@@ -138,6 +136,21 @@ Do not output the XML as chat text -- it belongs only inside tool calls.
                 }
             },
             "class": "restore_drawio_xml_tool.RestoreDrawioXmlCodedTool"
+        },
+        {
+            "name": "import_image",
+            "function": {
+                "description": "Imports a JPG/PNG architecture diagram/picture directly into output/cloudarch_drawio.xml, translating visual tiers, zones, components, and connections into valid Draw.io XML.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the image file to import."},
+                        "target_type": {"type": "string", "description": "Target type ('cloudarch')."}
+                    },
+                    "required": ["path"]
+                }
+            },
+            "class": "import_image_tool.ImportImageCodedTool"
         }
     ]
 }

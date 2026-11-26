@@ -248,3 +248,21 @@ class TestImportImageBothModes:
 
         assert os.path.isfile(os.path.join(server_output_dir, "process_data.json"))
         assert os.path.isfile(paths.output_path("process_data.json"))
+
+    def test_import_image_cloudarch_mcp_mode_materializes_locally(self, mcp_mode, tmp_path):
+        from PIL import Image, ImageDraw
+        from process_interface.ingestion.extractors import import_image
+
+        server_output_dir = mcp_mode
+        img_path = tmp_path / "System_Architecture.png"
+        img = Image.new("RGB", (300, 100), color="white")
+        draw = ImageDraw.Draw(img)
+        draw.text((10, 30), "AWS Cloud Architecture", fill="black")
+        img.save(img_path)
+
+        result = import_image(str(img_path), target_type="cloudarch")
+        assert result["status"] == "OK"
+        assert "<mxfile" in result["xml"]
+
+        assert os.path.isfile(os.path.join(server_output_dir, "cloudarch_drawio.xml"))
+        assert os.path.isfile(paths.output_path("cloudarch_drawio.xml"))

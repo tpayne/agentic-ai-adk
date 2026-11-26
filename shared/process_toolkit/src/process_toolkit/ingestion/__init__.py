@@ -9,6 +9,7 @@ from process_toolkit.ingestion.image_interpreter import (
     SUPPORTED_IMAGE_EXTENSIONS,
     import_image,
     interpret_image_with_model,
+    translate_image_to_cloudarch_drawio,
     translate_image_to_process_json,
     translate_image_to_requirements_json,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "interpret_image_with_model",
     "load_directory_context",
     "stage_attachments_to_directory",
+    "translate_image_to_cloudarch_drawio",
     "translate_image_to_process_json",
     "translate_image_to_requirements_json",
 ]

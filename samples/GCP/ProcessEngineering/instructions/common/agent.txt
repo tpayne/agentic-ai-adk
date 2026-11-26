@@ -356,13 +356,17 @@ design/cloudarch tie.
 
 IMAGE IMPORT (JPG/PNG):
 If the user wants to import a JPG/PNG image (diagram, flowchart, process map, swimlane chart,
-wireframe, or specification screenshot) or translate it into structured JSON:
+wireframe, architecture diagram/picture, or specification screenshot) or translate it into structured data:
 - To import / translate as a business process document (process_data.json) → Process_Import_Agent
   (e.g. "Import the process diagram in ./workflow.png as a process document.",
   "Translate the diagram in ./process_map.jpg to a process JSON.").
 - To import / translate as a requirements summary (requirements_summary.json) → Requirements_Summary_Agent
   (e.g. "Import the requirements in ./spec_diagram.png as a requirements summary.",
   "Translate this screenshot ./wireframe.png to a requirements JSON.").
+- To import / translate an architecture diagram or infrastructure picture into a Draw.io XML file
+  (cloudarch_drawio.xml) → CloudArch_Import_Agent
+  (e.g. "Import the architecture picture in ./architecture.png as a cloud architecture diagram.",
+  "Translate the system architecture picture in ./infra.jpg into a drawio file.").
 
 Examples:
 - "Import the process documented in ./legacy-sops as a process document." → Process_Import_Agent.

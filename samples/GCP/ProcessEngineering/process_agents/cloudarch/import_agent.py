@@ -14,17 +14,16 @@
 # path), not this one. Mirrors the neuro-san port's registries/
 # cloudarch_import.hocon.
 
-from ..common.utils import load_directory_context, load_drawio, restore_drawio_xml
+from ..common.utils import import_image, load_directory_context, load_drawio, restore_drawio_xml
 from ..common.agent_wrappers import ProcessLlmAgent
 
 cloudarch_import_agent = ProcessLlmAgent(
     name="CloudArch_Import_Agent",
     description=(
-        "Restores an already-existing cloud architecture diagram -- a drawio/mxGraph XML file, "
-        "typically one previously downloaded from this same toolkit -- as the active diagram, "
-        "VERBATIM, with no re-interpretation. Not for building a new diagram from a written "
-        "description (that's the regular cloud-architecture generation path)."
+        "Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML file) "
+        "OR imports an architecture diagram/picture (JPG/PNG, visually translated into Draw.io XML) "
+        "as the active cloud architecture diagram."
     ),
     instruction_file="cloudarch/import_agent.txt",
-    tools=[load_directory_context, load_drawio, restore_drawio_xml],
+    tools=[load_directory_context, load_drawio, restore_drawio_xml, import_image],
 )

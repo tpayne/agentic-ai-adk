@@ -2515,6 +2515,12 @@ def restore_drawio_xml(xml_content: str) -> str:
     return _save_drawio_core(xml_content, run_shape_mapping=False)
 
 
+def import_image(path: str, target_type: str = "cloudarch") -> dict:
+    """Imports an image file (JPG/PNG) as a process, requirements, or cloud architecture diagram."""
+    from process_interface.ingestion.extractors import import_image as _import_image
+    return _import_image(path, target_type=target_type)
+
+
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Saves the finalized JSON to output/process_data.json (or
