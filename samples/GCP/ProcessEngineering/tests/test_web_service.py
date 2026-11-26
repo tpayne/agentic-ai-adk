@@ -2174,6 +2174,39 @@ class WebServiceAgenticWebDiscoveryRoutesTest(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
 
 
+class WebServiceSsoAuthLoginTest(WebServiceSessionDeleteTest):
+    """Regression coverage for /auth/login/<provider_id>: CONFIRMED AS A
+    REAL BUG -- client_return was only ever assigned inside the "not
+    provider.is_configured" branch, but referenced unconditionally
+    further down (`if client_return:` before resp.set_cookie), so every
+    successful login attempt against a properly configured provider (the
+    normal case) crashed with UnboundLocalError. Reuses
+    WebServiceSessionDeleteTest's own setUpClass/setUp for the same
+    heavy-import-with-stub-cleanup dance process_agents.common.agent
+    needs."""
+
+    def test_auth_login_does_not_crash_for_a_configured_provider(self):
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "test-id", "GOOGLE_CLIENT_SECRET": "test-secret"}):
+            resp = self.client.get("/auth/login/google?json=true")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("accounts.google.com", data["auth_url"])
+
+    def test_auth_login_rejects_an_unrecognized_cross_origin_redirect_uri(self):
+        # CONFIRMED AS A REAL BUG: ?redirect_uri was accepted verbatim with
+        # no validation, later used as the post-login redirect destination
+        # (including appending the real session token to it) -- a complete
+        # account-takeover open redirect. See _safe_client_return's own
+        # docstring in agent.py for the full attack description.
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "test-id", "GOOGLE_CLIENT_SECRET": "test-secret"}):
+            resp = self.client.get("/auth/login/google?json=true&redirect_uri=https://evil.example/steal")
+        self.assertEqual(resp.status_code, 200)
+        set_cookies = resp.headers.getlist("Set-Cookie")
+        cookie_str = " ".join(set_cookies)
+        self.assertIn("sso_client_return=", cookie_str)
+        self.assertNotIn("evil.example", cookie_str)
+
 
 if __name__ == "__main__":
     unittest.main()

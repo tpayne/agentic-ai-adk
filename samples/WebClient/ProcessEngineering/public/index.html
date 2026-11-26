@@ -9,7 +9,88 @@
 </head>
 <body>
 
-<div id="app" class="app">
+<!-- Full-Page Login Screen (Gate: web app inaccessible until login completed) -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-brand">
+          <span class="login-brand-mark">PA</span>
+          <span class="login-brand-name">Process Architect</span>
+        </div>
+        <h2 class="login-title">Sign in to Process Architect</h2>
+        <p class="login-subtitle">Choose your identity provider to continue</p>
+      </div>
+
+      <div class="sso-providers-list">
+        <!-- Google Button -->
+        <button type="button" class="sso-btn sso-btn-google" id="loginBtnGoogle" data-provider="google">
+          <svg class="sso-icon" viewBox="0 0 24 24" width="18" height="18">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+
+        <!-- GitHub Button -->
+        <button type="button" class="sso-btn sso-btn-github" id="loginBtnGitHub" data-provider="github">
+          <svg class="sso-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>Continue with GitHub</span>
+        </button>
+
+        <!-- Microsoft Button -->
+        <button type="button" class="sso-btn sso-btn-microsoft" id="loginBtnMicrosoft" data-provider="microsoft">
+          <svg class="sso-icon" viewBox="0 0 21 21" width="18" height="18">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+          <span>Sign in with Microsoft</span>
+        </button>
+
+        <!-- Outlook Button -->
+        <button type="button" class="sso-btn sso-btn-outlook" id="loginBtnOutlook" data-provider="outlook">
+          <svg class="sso-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+          </svg>
+          <span>Sign in with Outlook</span>
+        </button>
+      </div>
+
+      <div id="loginErrorMsg" class="login-error-msg" hidden></div>
+
+      <div class="sso-modal-compliance">
+        <p class="sso-compliance-text">
+          By signing in, you agree to our
+          <a href="#terms" class="sso-legal-link" id="loginTermsLink">Terms of Service</a>
+          and acknowledge our
+          <a href="#privacy" class="sso-legal-link" id="loginPrivacyLink">Privacy Policy</a>.
+        </p>
+        <div class="sso-regulatory-badge">
+          <span class="sso-reg-pill">EU GDPR Compliant</span>
+          <span class="sso-reg-pill">CCPA / CPRA Notice</span>
+          <span class="sso-reg-pill">PKCE &amp; Anti-CSRF Protected</span>
+          <span class="sso-reg-pill">ePrivacy Directive</span>
+        </div>
+        <p class="sso-minimization-notice">
+          We request only minimal identity data (name &amp; email) pursuant to GDPR Art. 5(1)(c). We never sell or share your personal data.
+        </p>
+        <div class="login-compliance-links">
+          <button type="button" class="sso-text-link-btn" id="loginCookiePrefBtn">Cookie Preferences</button>
+          <span class="sso-link-sep">&bull;</span>
+          <button type="button" class="sso-text-link-btn" id="loginNoticeAtCollBtn">Notice at Collection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="app" hidden aria-hidden="true">
 
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -97,6 +178,10 @@
                  aria-label="Voice output volume">
         </label>
       </div>
+      <button id="sidebarLogoutBtn" type="button" class="btn btn-ghost btn-block sidebar-logout-btn" title="Log out" hidden>
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 13H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h3M10 11l3-3-3-3M13 8H5"/></svg>
+        <span>Log out</span>
+      </button>
       <p class="sidebar-note">
         Works with either the ADK or neuro-san backend's REST API &mdash; same
         contract, same client.
@@ -110,10 +195,51 @@
     <header class="topbar">
       <button id="sidebarOpenBtn" class="icon-btn sidebar-open" title="Menu" aria-label="Open sidebar">&#9776;</button>
       <h1 class="topbar-title">Process Architect</h1>
-      <span id="topbarStatus" class="status-pill status-unknown topbar-status">
-        <span class="status-dot"></span>
-        <span class="status-text">Not connected</span>
-      </span>
+      <div class="topbar-actions">
+        <span id="topbarStatus" class="status-pill status-unknown topbar-status">
+          <span class="status-dot"></span>
+          <span class="status-text">Not connected</span>
+        </span>
+        <div class="sso-auth-container" id="ssoAuthContainer">
+          <div class="sso-user-profile" id="ssoUserProfile" hidden>
+            <button type="button" class="sso-profile-pill" id="ssoProfilePill" aria-haspopup="true" aria-expanded="false">
+              <img id="ssoUserAvatar" class="sso-user-avatar" src="" alt="Avatar">
+              <span id="ssoUserName" class="sso-user-name">User</span>
+              <span id="ssoProviderBadge" class="sso-provider-badge">SSO</span>
+              <svg class="chevron-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>
+            </button>
+            <div class="sso-user-dropdown" id="ssoUserDropdown" hidden>
+              <div class="sso-dropdown-header">
+                <div class="sso-dropdown-name" id="ssoDropdownName">User</div>
+                <div class="sso-dropdown-email" id="ssoDropdownEmail">user@example.com</div>
+                <div class="sso-dropdown-provider" id="ssoDropdownProvider">SSO Verified</div>
+              </div>
+              <div class="sso-dropdown-divider"></div>
+              <button type="button" class="sso-dropdown-item" id="ssoExportDataBtn">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2v9m0 0l-3-3m3 3l3-3M2 13h12"/></svg>
+                Download My Data (GDPR Art. 15)
+              </button>
+              <button type="button" class="sso-dropdown-item" id="ssoCookiePrefBtn">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="10" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="10" r="1" fill="currentColor"/></svg>
+                Cookie Preferences
+              </button>
+              <button type="button" class="sso-dropdown-item" id="ssoPrivacyBtn">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2l5 2.5v4.5c0 3.5-2.5 6-5 7-2.5-1-5-3.5-5-7V4.5L8 2z"/></svg>
+                Privacy Policy &amp; Terms
+              </button>
+              <button type="button" class="sso-dropdown-item sso-danger-item" id="ssoDeleteDataBtn">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M6 4V2.5h4V4M4.5 4l.5 9h6l.5-9"/></svg>
+                Delete Account &amp; Data (GDPR Art. 17)
+              </button>
+              <div class="sso-dropdown-divider"></div>
+              <button type="button" class="sso-dropdown-item" id="ssoSignOutBtn">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 13H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h3M10 11l3-3-3-3M13 8H5"/></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </header>
 
     <nav class="tabbar" id="tabbar" role="tablist">
@@ -649,6 +775,38 @@
       </div>
     </div>
   </main>
+</div>
+
+
+
+<!-- Cookie & Privacy Consent Banner (GDPR / ePrivacy / CCPA) -->
+<div class="cookie-banner" id="cookieConsentBanner" hidden>
+  <div class="cookie-banner-content">
+    <div class="cookie-banner-text">
+      <strong>Cookie &amp; Privacy Notice:</strong> We use strictly necessary cookies to manage authentication sessions, anti-CSRF tokens, and security under GDPR Article 6(1)(f) and the ePrivacy Directive. Optional cookies remember your theme and preferences. We do not sell your personal data.
+    </div>
+    <div class="cookie-banner-actions">
+      <button type="button" class="cookie-btn cookie-btn-accept" id="cookieAcceptAllBtn">Accept All</button>
+      <button type="button" class="cookie-btn cookie-btn-reject" id="cookieRejectOptionalBtn">Strictly Necessary Only</button>
+      <button type="button" class="cookie-btn cookie-btn-manage" id="cookieManageBtn">Preferences</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compliance & Legal Document Modal -->
+<div class="compliance-modal-backdrop" id="complianceModal" hidden>
+  <div class="compliance-modal-dialog" role="dialog" aria-labelledby="complianceModalTitle" aria-modal="true">
+    <div class="compliance-modal-header">
+      <h3 id="complianceModalTitle">Legal &amp; Compliance</h3>
+      <button type="button" class="icon-btn" id="complianceModalCloseBtn" title="Close" aria-label="Close">&times;</button>
+    </div>
+    <div class="compliance-modal-body" id="complianceModalBody">
+      <!-- Dynamic markdown or HTML content inserted here -->
+    </div>
+    <div class="compliance-modal-footer">
+      <button type="button" class="action-btn" id="complianceModalDismissBtn">Close</button>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>

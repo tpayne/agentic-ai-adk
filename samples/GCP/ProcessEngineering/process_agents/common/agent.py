@@ -8,10 +8,12 @@ import logging.handlers
 import secrets
 import threading
 import time
+import hashlib
 import hmac
 import inspect
 import json
 import queue
+import urllib.parse
 import base64
 import binascii
 from typing import Any, Dict, List, Optional
@@ -690,6 +692,22 @@ _web_runtime_init_lock = threading.Lock()
 _WEB_APP_NAME = "ProcessArchitect"
 WEB_SESSION_COOKIE = "process_architect_session"
 
+def _sso_allowed_redirect_origins() -> frozenset:
+    """Opt-in allowlist for the post-SSO-login redirect destination
+    (?redirect_uri= on /auth/login) when the web client lives on a
+    different origin than this backend -- see _safe_client_return's own
+    docstring for why an unvalidated absolute URL here is a real
+    vulnerability. Empty by default (same-origin relative paths only);
+    set SSO_ALLOWED_REDIRECT_ORIGINS to a comma-separated list of trusted
+    origins (e.g. "https://my-webclient.example") to allow the web
+    client's own cross-origin bridge redirect to work. Read fresh on
+    every call (cheap, rarely called) rather than once at import time, so
+    it can actually be exercised/overridden in tests without a module reload.
+    """
+    return frozenset(
+        o.strip().rstrip("/") for o in os.environ.get("SSO_ALLOWED_REDIRECT_ORIGINS", "").split(",") if o.strip()
+    )
+
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
@@ -1325,7 +1343,9 @@ def build_web_app(https: bool = True):
     samples/WebClient/ProcessEngineering (a static page with no backend
     of its own) call this API directly from a browser.
     """
-    from flask import Flask, request, jsonify, make_response, Response, send_file
+    from flask import Flask, request, jsonify, make_response, Response, send_file, redirect, send_from_directory, abort
+    import html
+    from pathlib import Path
 
     web_app = Flask("ProcessArchitectWebService")
     web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -1396,6 +1416,11 @@ def build_web_app(https: bool = True):
 
         if (
             request.path in (
+                "/",
+                "/index.html",
+                "/style.css",
+                "/app.js",
+                "/favicon.ico",
                 "/status",
                 "/.well-known/agent.json",
                 "/agents",
@@ -1404,14 +1429,24 @@ def build_web_app(https: bool = True):
                 "/artifacts/contracts",
             )
             or (request.path.startswith("/agents/") and not request.path.endswith("/instructions"))
-            or request.path.startswith(("/workflows/", "/artifacts/contracts/"))
+            or request.path.startswith(("/workflows/", "/artifacts/contracts/", "/auth/"))
         ):
-            return None  # liveness probe and discovery endpoints stay open: no auth, no rate limit
+            return None  # liveness probe, discovery, and SSO auth/compliance endpoints stay open: no auth, no rate limit
 
         if api_key:
             auth_header = request.headers.get("Authorization", "")
-            bearer_token = auth_header[7:] if auth_header.startswith("Bearer ") else None
-            if not (_api_key_matches(bearer_token) or _api_key_matches(request.headers.get("X-API-Key"))):
+            bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+            # Allow valid SSO session token or configured webApiKey
+            sso_token = request.cookies.get("sso_token") or (bearer_token if bearer_token and bearer_token.startswith("sso_") else None)
+            is_valid_sso = False
+            if sso_token:
+                try:
+                    from process_interface.sso import get_sso_session_manager
+                    is_valid_sso = get_sso_session_manager().get_session(sso_token) is not None
+                except Exception:
+                    pass
+
+            if not (is_valid_sso or _api_key_matches(bearer_token) or _api_key_matches(request.headers.get("X-API-Key"))):
                 return jsonify({"status": "error", "error": "Unauthorized"}), 401
 
         if not _check_rate_limit(request.remote_addr or "unknown", rate_limit_per_minute):
@@ -1715,6 +1750,470 @@ def build_web_app(https: bool = True):
             "total_count": res["total_count"],
             "logs": res["logs"],
         })
+
+    # ---------------------------------------------------------
+    # SSO AUTHENTICATION & US/EU REGULATORY COMPLIANCE ROUTES
+    # ---------------------------------------------------------
+    from process_interface.sso import (
+        get_configured_providers,
+        get_providers_metadata,
+        get_sso_session_manager,
+        get_notice_at_collection,
+        get_privacy_policy_text,
+        get_terms_of_service_text,
+        COOKIE_CATEGORIES,
+        generate_oauth_state,
+        generate_pkce_pair,
+        clear_cli_credentials,
+    )
+
+    def _safe_client_return(raw: Optional[str]) -> str:
+        """CONFIRMED AS A REAL BUG: ?redirect_uri was accepted verbatim from
+        the request and later used, with no validation at all, as the
+        post-login redirect destination -- including appending the
+        freshly-minted real SSO session token as a URL query parameter when
+        no popup opener was available. An attacker-crafted link
+        (`/auth/login/google?redirect_uri=https://evil.example/steal`)
+        would send a victim through a completely legitimate Google login
+        and then hand their real, usable session token straight to
+        evil.example via the final redirect -- full account takeover, with
+        nothing about the flow looking suspicious to the victim.
+
+        A same-origin relative path is always safe and always allowed. The
+        web client legitimately needs an ABSOLUTE cross-origin redirect_uri
+        too (it typically lives on a different origin than this backend,
+        and sends its own page URL so the post-login bridge can navigate
+        back to it when no popup opener is available) -- that's only
+        honored if its origin is in the operator's own explicit
+        SSO_ALLOWED_REDIRECT_ORIGINS allowlist. Unconfigured (the default)
+        means only relative paths work -- secure by default, matching every
+        other "set an env var to enable this" feature in this file.
+        """
+        if not raw:
+            return "/"
+        parsed = urllib.parse.urlparse(raw)
+        if not parsed.scheme and not parsed.netloc:
+            # Relative path. Still must be rejected if it's a protocol-
+            # relative "//host" URL, or a "/\host" variant some browsers
+            # still normalize to "//" -- urlparse alone doesn't catch
+            # either (no scheme, and no netloc since there's no "//" by
+            # its own parsing rules for the backslash variant).
+            if raw.startswith("/") and not raw.startswith("//") and not raw.startswith("/\\"):
+                return raw
+            return "/"
+        origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        # Also safe: an absolute URL that just spells out THIS SAME
+        # server's own origin (e.g. this app's own /index.html route,
+        # for a deployment where this backend also serves the web
+        # client) -- functionally identical to a relative path, no
+        # cross-origin leak at all.
+        if origin in _sso_allowed_redirect_origins() or origin == request.host_url.rstrip("/"):
+            return raw
+        return "/"
+
+    def _resolve_sso_token() -> Optional[str]:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            tok = auth_header[7:].strip()
+            if tok.startswith("sso_"):
+                return tok
+        cookie_token = request.cookies.get("sso_token")
+        if cookie_token and cookie_token.startswith("sso_"):
+            return cookie_token
+        return None
+
+    @web_app.route("/auth/providers", methods=["GET"])
+    def auth_providers():
+        return jsonify({
+            "status": "ok",
+            "providers": get_providers_metadata(),
+            "cookie_categories": COOKIE_CATEGORIES,
+        })
+
+    @web_app.route("/auth/login/<provider_id>", methods=["GET"])
+    def auth_login(provider_id):
+        providers = get_configured_providers()
+        provider = providers.get(provider_id.lower())
+        if not provider:
+            return jsonify({"status": "error", "error": f"Unknown provider: {provider_id}"}), 404
+
+        state = generate_oauth_state()
+        verifier, challenge = generate_pkce_pair()
+
+        host_url = request.host_url.rstrip("/")
+        redirect_uri = f"{host_url}/auth/callback/{provider_id.lower()}"
+
+        # CONFIRMED AS A REAL BUG: client_return used to only be assigned
+        # inside the "not provider.is_configured" branch below, yet was
+        # referenced unconditionally further down (`if client_return:`
+        # before resp.set_cookie) -- every successful login for a properly
+        # configured provider (the normal case) crashed with
+        # UnboundLocalError. Assigning it here, unconditionally, both
+        # fixes that and makes it available to the error-bridge branch too.
+        client_return = _safe_client_return(request.args.get("redirect_uri"))
+
+        def _make_error_bridge(err_msg: str, client_ret: str, pid: str, status_code: int = 400):
+            error_bridge = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Process Architect &mdash; Authentication Error</title>
+  <script>
+    const errorData = {{
+      type: "SSO_AUTH_ERROR",
+      error: {json.dumps(err_msg)},
+      provider: {json.dumps(pid)}
+    }};
+    let handled = false;
+    if (window.opener && !window.opener.closed) {{
+      try {{
+        window.opener.postMessage(errorData, "*");
+        handled = true;
+        setTimeout(() => window.close(), 400);
+      }} catch (e) {{
+        handled = false;
+      }}
+    }}
+    if (!handled) {{
+      try {{
+        const dest = new URL({json.dumps(client_ret)}, window.location.href);
+        dest.searchParams.set("sso_error", {json.dumps(err_msg)});
+        window.location.href = dest.toString();
+      }} catch (e) {{
+        window.location.href = {json.dumps(client_ret)};
+      }}
+    }}
+  </script>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #0f1117; color: #ef4444; text-align: center; padding-top: 50px; }}
+    a {{ color: #6366f1; text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <h2>Authentication Error</h2>
+  <p>{html.escape(err_msg)}</p>
+  <p><a href="{html.escape(client_ret)}">Return to Login Screen</a></p>
+</body>
+</html>"""
+            err_resp = make_response(error_bridge, status_code)
+            err_resp.delete_cookie("sso_state")
+            err_resp.delete_cookie("sso_pkce_verifier")
+            err_resp.delete_cookie("sso_client_return")
+            return err_resp
+
+        if not provider.is_configured:
+            err_msg = (
+                f"{provider.display_name} Single Sign-On is not configured. "
+                f"Real authentication requires {provider.provider_id.upper()}_CLIENT_ID and "
+                f"{provider.provider_id.upper()}_CLIENT_SECRET in your environment or .env file."
+            )
+            want_json = request.args.get("json", "").lower() == "true" or request.headers.get("Accept") == "application/json"
+            if want_json:
+                return jsonify({"status": "error", "error": err_msg}), 400
+            return _make_error_bridge(err_msg, client_return, provider_id)
+
+        auth_url = provider.get_authorization_url(
+            redirect_uri=redirect_uri,
+            state=state,
+            code_challenge=challenge,
+        )
+
+        want_json = request.args.get("json", "").lower() == "true" or request.headers.get("Accept") == "application/json"
+        if want_json:
+            resp = make_response(jsonify({
+                "status": "ok",
+                "provider": provider_id,
+                "auth_url": auth_url,
+                "state": state,
+            }))
+        else:
+            resp = make_response(redirect(auth_url))
+
+        resp.set_cookie("sso_state", state, max_age=600, httponly=True, samesite="Lax", secure=https)
+        resp.set_cookie("sso_pkce_verifier", verifier, max_age=600, httponly=True, samesite="Lax", secure=https)
+        if client_return:
+            resp.set_cookie("sso_client_return", client_return, max_age=600, httponly=True, samesite="Lax", secure=https)
+        return resp
+
+    @web_app.route("/auth/login/token", methods=["POST"])
+    def auth_login_token():
+        """Authenticates directly via a real provider personal access token (e.g. GitHub PAT).
+        
+        Validates the token against the real provider userinfo API. Rejects invalid credentials.
+        """
+        data = request.get_json(silent=True) or {}
+        provider_id = (data.get("provider") or "github").lower()
+        token_str = (data.get("token") or "").strip()
+        if not token_str:
+            return jsonify({"status": "error", "error": "Missing token"}), 400
+
+        providers = get_configured_providers()
+        provider = providers.get(provider_id)
+        if not provider:
+            return jsonify({"status": "error", "error": f"Unknown provider: {provider_id}"}), 404
+
+        verified = provider.verify_token(token_str)
+        if "error" in verified:
+            return jsonify({"status": "error", "error": f"Authentication failed with {provider.display_name}: {verified['error']}"}), 401
+
+        manager = get_sso_session_manager()
+        session_rec = manager.create_session(verified)
+        token = session_rec["token"]
+
+        resp = make_response(jsonify({
+            "status": "ok",
+            "authenticated": True,
+            "token": token,
+            "user": verified,
+        }))
+        # CONFIRMED AS A REAL BUG: this used to set the cookie under the
+        # name WEB_SESSION_COOKIE ("process_architect_session") -- the
+        # UNRELATED chat-session cookie used throughout the rest of this
+        # file to track which chat session a request belongs to. That both
+        # corrupted the caller's existing chat session (its cookie value
+        # became an "sso_..." token, matching no real chat session) AND
+        # meant _resolve_sso_token's own cookie lookup (which reads
+        # "sso_token", matching every other successful-auth path in this
+        # file) would never find it at all.
+        resp.set_cookie("sso_token", token, max_age=30 * 86400, httponly=True, samesite="Lax", secure=https)
+        return resp
+
+    @web_app.route("/auth/callback/<provider_id>", methods=["GET"])
+    def auth_callback(provider_id):
+        providers = get_configured_providers()
+        provider = providers.get(provider_id.lower())
+        if not provider:
+            return jsonify({"status": "error", "error": f"Unknown provider: {provider_id}"}), 404
+
+        want_json = request.args.get("mode", "").lower() == "json" or request.headers.get("Accept") == "application/json"
+        # Defense in depth: this cookie should only ever contain a value
+        # /auth/login already sanitized (see _safe_client_return's own
+        # docstring), but re-validate at the point of use too.
+        client_return = _safe_client_return(request.cookies.get("sso_client_return"))
+
+        def _make_error_resp(err_msg: str, status_code: int = 400):
+            if want_json:
+                return jsonify({"status": "error", "error": err_msg}), status_code
+            error_bridge = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Process Architect &mdash; Authentication Error</title>
+  <script>
+    const errorData = {{
+      type: "SSO_AUTH_ERROR",
+      error: {json.dumps(err_msg)},
+      provider: {json.dumps(provider_id)}
+    }};
+    let handled = false;
+    if (window.opener && !window.opener.closed) {{
+      try {{
+        window.opener.postMessage(errorData, "*");
+        handled = true;
+        setTimeout(() => window.close(), 400);
+      }} catch (e) {{
+        handled = false;
+      }}
+    }}
+    if (!handled) {{
+      try {{
+        const dest = new URL({json.dumps(client_return)}, window.location.href);
+        dest.searchParams.set("sso_error", {json.dumps(err_msg)});
+        window.location.href = dest.toString();
+      }} catch (e) {{
+        window.location.href = {json.dumps(client_return)};
+      }}
+    }}
+  </script>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #0f1117; color: #ef4444; text-align: center; padding-top: 50px; }}
+    a {{ color: #6366f1; text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <h2>Authentication Error</h2>
+  <p>{html.escape(err_msg)}</p>
+  <p><a href="{html.escape(client_return)}">Return to Login Screen</a></p>
+</body>
+</html>"""
+            err_resp = make_response(error_bridge, status_code)
+            err_resp.delete_cookie("sso_state")
+            err_resp.delete_cookie("sso_pkce_verifier")
+            err_resp.delete_cookie("sso_client_return")
+            return err_resp
+
+        err = request.args.get("error")
+        if err:
+            err_desc = request.args.get("error_description") or err
+            return _make_error_resp(f"{provider.display_name} authentication failed: {err_desc}")
+
+        received_state = request.args.get("state")
+        expected_state = request.cookies.get("sso_state")
+        if not received_state or not expected_state or not hmac.compare_digest(received_state, expected_state):
+            return _make_error_resp("Anti-CSRF state verification failed")
+
+        code = request.args.get("code")
+        if not code:
+            return _make_error_resp("Missing authorization code from provider")
+
+        verifier = request.cookies.get("sso_pkce_verifier")
+        host_url = request.host_url.rstrip("/")
+        redirect_uri = f"{host_url}/auth/callback/{provider_id.lower()}"
+
+        tokens = provider.exchange_code_for_token(code=code, redirect_uri=redirect_uri, code_verifier=verifier)
+        if "error" in tokens:
+            return _make_error_resp(f"Token exchange error: {tokens['error']}")
+        access_token = tokens.get("access_token", "")
+        if not access_token:
+            return _make_error_resp("Provider did not return an access token")
+
+        raw = provider.fetch_user_profile(access_token)
+        if "error" in raw:
+            return _make_error_resp(f"Failed to fetch profile: {raw['error']}")
+
+        profile = provider.normalize_user_profile(raw)
+
+        manager = get_sso_session_manager()
+        session_rec = manager.create_session(profile)
+        token = session_rec["token"]
+
+        active_chat_sid = request.args.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        if active_chat_sid:
+            manager.link_chat_session(token, active_chat_sid)
+
+        if want_json:
+            resp = make_response(jsonify({
+                "status": "ok",
+                "authenticated": True,
+                "token": token,
+                "user": profile,
+            }))
+        else:
+            bridge_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Process Architect &mdash; Authentication Complete</title>
+  <script>
+    const authData = {{
+      type: "SSO_AUTH_SUCCESS",
+      token: {json.dumps(token)},
+      user: {json.dumps(profile)}
+    }};
+    let handled = false;
+    if (window.opener && !window.opener.closed) {{
+      try {{
+        window.opener.postMessage(authData, "*");
+        handled = true;
+        setTimeout(() => window.close(), 300);
+      }} catch (e) {{
+        handled = false;
+      }}
+    }}
+    if (!handled) {{
+      try {{
+        const dest = new URL({json.dumps(client_return)}, window.location.href);
+        dest.searchParams.set("token", {json.dumps(token)});
+        window.location.href = dest.toString();
+      }} catch (e) {{
+        window.location.href = {json.dumps(client_return)};
+      }}
+    }}
+  </script>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #0f1117; color: #fff; text-align: center; padding-top: 50px; }}
+  </style>
+</head>
+<body>
+  <h2>Authentication Complete</h2>
+  <p>Returning to Process Architect...</p>
+</body>
+</html>"""
+            resp = make_response(bridge_html)
+
+        resp.set_cookie("sso_token", token, max_age=30 * 86400, httponly=True, samesite="Lax", secure=https)
+        resp.delete_cookie("sso_state")
+        resp.delete_cookie("sso_pkce_verifier")
+        resp.delete_cookie("sso_client_return")
+        return resp
+
+    @web_app.route("/auth/session", methods=["GET"])
+    @web_app.route("/auth/me", methods=["GET"])
+    def auth_session():
+        token = _resolve_sso_token()
+        if not token:
+            return jsonify({"status": "ok", "authenticated": False, "user": None})
+        manager = get_sso_session_manager()
+        sess = manager.get_session(token)
+        if not sess:
+            return jsonify({"status": "ok", "authenticated": False, "user": None})
+        return jsonify({
+            "status": "ok",
+            "authenticated": True,
+            "token": sess["token"],
+            "user": sess["user"],
+            "created_at": sess["created_at"],
+        })
+
+    @web_app.route("/auth/logout", methods=["POST"])
+    def auth_logout():
+        token = _resolve_sso_token()
+        if token:
+            get_sso_session_manager().revoke_session(token)
+        clear_cli_credentials()
+        resp = make_response(jsonify({"status": "ok", "authenticated": False, "message": "Logged out successfully"}))
+        resp.delete_cookie("sso_token", samesite="Lax", secure=https, path="/")
+        return resp
+
+    @web_app.route("/auth/compliance/notice", methods=["GET"])
+    def auth_compliance_notice():
+        return jsonify({
+            "status": "ok",
+            "notice": get_notice_at_collection(),
+            "cookie_categories": COOKIE_CATEGORIES,
+        })
+
+    @web_app.route("/auth/compliance/privacy-policy", methods=["GET"])
+    def auth_privacy_policy():
+        return jsonify({
+            "status": "ok",
+            "markdown": get_privacy_policy_text(),
+        })
+
+    @web_app.route("/auth/compliance/terms", methods=["GET"])
+    def auth_terms():
+        return jsonify({
+            "status": "ok",
+            "markdown": get_terms_of_service_text(),
+        })
+
+    @web_app.route("/auth/user/export", methods=["GET"])
+    def auth_user_export():
+        token = _resolve_sso_token()
+        if not token:
+            return jsonify({"status": "error", "error": "Unauthorized"}), 401
+        manager = get_sso_session_manager()
+        export_data = manager.export_user_data(token)
+        if "error" in export_data:
+            return jsonify({"status": "error", "error": export_data["error"]}), 401
+        return jsonify({"status": "ok", **export_data})
+
+    @web_app.route("/auth/user/data", methods=["DELETE"])
+    def auth_user_delete():
+        token = _resolve_sso_token()
+        if not token:
+            return jsonify({"status": "error", "error": "Unauthorized"}), 401
+        manager = get_sso_session_manager()
+        result = manager.delete_user_data(token)
+        if "error" in result:
+            return jsonify({"status": "error", "error": result["error"]}), 401
+        clear_cli_credentials()
+        resp = make_response(jsonify(result))
+        resp.delete_cookie("sso_token")
+        return resp
 
     @web_app.route("/.well-known/agent.json", methods=["GET"])
     def agent_manifest():
@@ -2361,6 +2860,25 @@ def build_web_app(https: bool = True):
     @web_app.route("/status", methods=["GET"])
     def status():
         return jsonify({"status": "live", "model": MODEL})
+
+    webclient_dir = Path(__file__).resolve().parents[4] / "WebClient" / "ProcessEngineering" / "public"
+    if webclient_dir.is_dir():
+        @web_app.route("/", methods=["GET"])
+        @web_app.route("/index.html", methods=["GET"])
+        def serve_index():
+            return send_from_directory(webclient_dir, "index.html")
+
+        @web_app.route("/style.css", methods=["GET"])
+        def serve_style():
+            return send_from_directory(webclient_dir, "style.css")
+
+        @web_app.route("/app.js", methods=["GET"])
+        def serve_app_js():
+            return send_from_directory(webclient_dir, "app.js")
+
+        @web_app.route("/favicon.ico", methods=["GET"])
+        def serve_favicon():
+            return send_from_directory(webclient_dir, "favicon.ico")
 
     return web_app
 

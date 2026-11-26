@@ -286,6 +286,45 @@
     logsEmptyText: document.getElementById("logsEmptyText"),
     logsList: document.getElementById("logsList"),
 
+    app: document.getElementById("app"),
+    loginScreen: document.getElementById("loginScreen"),
+    loginBtnGoogle: document.getElementById("loginBtnGoogle"),
+    loginBtnGitHub: document.getElementById("loginBtnGitHub"),
+    loginBtnMicrosoft: document.getElementById("loginBtnMicrosoft"),
+    loginBtnOutlook: document.getElementById("loginBtnOutlook"),
+    loginErrorMsg: document.getElementById("loginErrorMsg"),
+    loginTermsLink: document.getElementById("loginTermsLink"),
+    loginPrivacyLink: document.getElementById("loginPrivacyLink"),
+    loginCookiePrefBtn: document.getElementById("loginCookiePrefBtn"),
+    loginNoticeAtCollBtn: document.getElementById("loginNoticeAtCollBtn"),
+
+    ssoUserProfile: document.getElementById("ssoUserProfile"),
+    ssoProfilePill: document.getElementById("ssoProfilePill"),
+    ssoUserAvatar: document.getElementById("ssoUserAvatar"),
+    ssoUserName: document.getElementById("ssoUserName"),
+    ssoProviderBadge: document.getElementById("ssoProviderBadge"),
+    ssoUserDropdown: document.getElementById("ssoUserDropdown"),
+    ssoDropdownName: document.getElementById("ssoDropdownName"),
+    ssoDropdownEmail: document.getElementById("ssoDropdownEmail"),
+    ssoDropdownProvider: document.getElementById("ssoDropdownProvider"),
+    ssoExportDataBtn: document.getElementById("ssoExportDataBtn"),
+    ssoCookiePrefBtn: document.getElementById("ssoCookiePrefBtn"),
+    ssoPrivacyBtn: document.getElementById("ssoPrivacyBtn"),
+    ssoDeleteDataBtn: document.getElementById("ssoDeleteDataBtn"),
+    ssoSignOutBtn: document.getElementById("ssoSignOutBtn"),
+    sidebarLogoutBtn: document.getElementById("sidebarLogoutBtn"),
+
+    cookieConsentBanner: document.getElementById("cookieConsentBanner"),
+    cookieAcceptAllBtn: document.getElementById("cookieAcceptAllBtn"),
+    cookieRejectOptionalBtn: document.getElementById("cookieRejectOptionalBtn"),
+    cookieManageBtn: document.getElementById("cookieManageBtn"),
+
+    complianceModal: document.getElementById("complianceModal"),
+    complianceModalTitle: document.getElementById("complianceModalTitle"),
+    complianceModalBody: document.getElementById("complianceModalBody"),
+    complianceModalCloseBtn: document.getElementById("complianceModalCloseBtn"),
+    complianceModalDismissBtn: document.getElementById("complianceModalDismissBtn"),
+
     toast: null,
   };
 
@@ -321,6 +360,8 @@
     theme: null, // null = follow system preference
     voiceMuted: false,
     voiceVolume: 100,
+    ssoToken: localStorage.getItem("pa_sso_token") || null,
+    authUser: null,
     ...loadState(),
     isSending: false,
   };
@@ -798,14 +839,40 @@
     el.apiKeyInput.type = el.apiKeyInput.type === "password" ? "text" : "password";
   });
 
+  function detectInitialOrigin() {
+    if (typeof window !== "undefined" && window.location && window.location.protocol && window.location.protocol.startsWith("http")) {
+      const origin = window.location.origin;
+      if (origin === PRESETS.adk.baseUrl) return { preset: "adk", baseUrl: origin };
+      if (origin === PRESETS.ns.baseUrl) return { preset: "ns", baseUrl: origin };
+      return { preset: "custom", baseUrl: origin };
+    }
+    return { preset: "adk", baseUrl: PRESETS.adk.baseUrl };
+  }
+
   function currentBaseUrl() {
-    return (el.baseUrlInput.value || "").trim().replace(/\/+$/, "");
+    if (typeof window !== "undefined" && window.location && window.location.protocol && window.location.protocol.startsWith("http")) {
+      const origin = window.location.origin;
+      const customUrl = (el.baseUrlInput?.value || "").trim().replace(/\/+$/, "");
+      if (state.preset === "custom" && customUrl && customUrl !== origin) {
+        return customUrl;
+      }
+      return origin;
+    }
+    return (el.baseUrlInput?.value || "").trim().replace(/\/+$/, "") || PRESETS.adk.baseUrl;
   }
 
   function authHeaders() {
-    const key = el.apiKeyInput.value.trim();
-    if (!key) return {};
-    return { Authorization: `Bearer ${key}` };
+    const headers = {};
+    const ssoToken = state.ssoToken || localStorage.getItem("pa_sso_token");
+    if (ssoToken) {
+      headers["Authorization"] = `Bearer ${ssoToken}`;
+    } else {
+      const key = (el.apiKeyInput?.value || "").trim();
+      if (key) headers["Authorization"] = `Bearer ${key}`;
+    }
+    const key = (el.apiKeyInput?.value || "").trim();
+    if (key) headers["X-API-Key"] = key;
+    return headers;
   }
 
   // GET /artifacts/* routes (viewing/downloading process/design/
@@ -5882,9 +5949,379 @@
   }
 
   // ---------------------------------------------------------------
+  // Single Sign-On (SSO) & Regulatory Compliance
+  // ---------------------------------------------------------------
+  function showLoginScreen() {
+    if (el.app) {
+      el.app.hidden = true;
+      el.app.setAttribute("aria-hidden", "true");
+    }
+    if (el.loginScreen) {
+      el.loginScreen.hidden = false;
+      el.loginScreen.removeAttribute("aria-hidden");
+    }
+    if (el.loginErrorMsg) el.loginErrorMsg.hidden = true;
+  }
+
+  function showMainApp() {
+    if (el.loginScreen) {
+      el.loginScreen.hidden = true;
+      el.loginScreen.setAttribute("aria-hidden", "true");
+    }
+    if (el.app) {
+      el.app.hidden = false;
+      el.app.removeAttribute("aria-hidden");
+    }
+    renderSSOUserState();
+    renderNetwork();
+    renderUsageChart();
+    updateLogsSessionDisplay();
+    if (el.messageInput) el.messageInput.focus();
+  }
+
+  function renderSSOUserState() {
+    const user = state.authUser;
+    if (user) {
+      if (el.ssoUserProfile) el.ssoUserProfile.hidden = false;
+      if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.hidden = false;
+      const displayName = user.name || user.username || user.email || "User";
+      const displayEmail = (user.email && user.email !== displayName) ? user.email : (user.username || "");
+      if (el.ssoUserName) el.ssoUserName.textContent = displayName;
+      if (el.ssoUserAvatar) {
+        el.ssoUserAvatar.src = user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
+      }
+      if (el.ssoProviderBadge) el.ssoProviderBadge.textContent = (user.provider || "SSO").toUpperCase();
+      if (el.ssoDropdownName) el.ssoDropdownName.textContent = displayName;
+      if (el.ssoDropdownEmail) el.ssoDropdownEmail.textContent = displayEmail;
+      if (el.ssoDropdownProvider) {
+        el.ssoDropdownProvider.textContent = `${(user.provider || "SSO").toUpperCase()} Authenticated`;
+      }
+    } else {
+      if (el.ssoUserProfile) el.ssoUserProfile.hidden = true;
+      if (el.ssoUserDropdown) el.ssoUserDropdown.hidden = true;
+      if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.hidden = true;
+    }
+  }
+
+  async function checkSSOSession() {
+    const baseUrl = currentBaseUrl();
+    const token = state.ssoToken || localStorage.getItem("pa_sso_token");
+    if (!baseUrl || !token) {
+      state.authUser = null;
+      renderSSOUserState();
+      return false;
+    }
+    try {
+      const res = await fetch(`${baseUrl}/auth/session`, {
+        method: "GET",
+        headers: {
+          ...authHeaders(),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          state.authUser = data.user;
+          state.ssoToken = data.token || token;
+          localStorage.setItem("pa_sso_token", state.ssoToken);
+          renderSSOUserState();
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to verify SSO session:", err);
+    }
+
+    state.authUser = null;
+    state.ssoToken = null;
+    localStorage.removeItem("pa_sso_token");
+    renderSSOUserState();
+    return false;
+  }
+
+  // Set by startSSOFlow, checked by the message listener below
+  let ssoPopupWindow = null;
+  let ssoBackendOrigin = null;
+
+  async function startSSOFlow(provider) {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      if (el.loginErrorMsg) {
+        el.loginErrorMsg.textContent = "Please configure a valid backend Server URL first.";
+        el.loginErrorMsg.hidden = false;
+      } else {
+        toast("Please configure a valid backend Server URL first.");
+      }
+      return;
+    }
+    if (el.loginErrorMsg) el.loginErrorMsg.hidden = true;
+
+    const returnUrl = window.location.href.split("?")[0].split("#")[0];
+    const loginUrl = `${baseUrl}/auth/login/${encodeURIComponent(provider)}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+    try {
+      ssoBackendOrigin = new URL(baseUrl, window.location.href).origin;
+    } catch {
+      ssoBackendOrigin = null;
+    }
+
+    const w = 520, h = 680;
+    const y = window.top.outerHeight / 2 + window.top.screenY - (h / 2);
+    const x = window.top.outerWidth / 2 + window.top.screenX - (w / 2);
+
+    const popup = window.open(
+      loginUrl,
+      "sso_auth_popup",
+      `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${w}, height=${h}, top=${y}, left=${x}`
+    );
+    ssoPopupWindow = popup || null;
+
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      window.location.href = loginUrl;
+      return;
+    }
+
+    toast(`Connecting to ${provider.toUpperCase()} SSO...`);
+  }
+
+  window.addEventListener("message", async (event) => {
+    if (ssoBackendOrigin && event.origin !== ssoBackendOrigin && event.origin !== window.location.origin) {
+      return;
+    }
+    if (event.data && event.data.type === "SSO_AUTH_SUCCESS") {
+      const { token, user } = event.data;
+      if (token) {
+        state.ssoToken = token;
+        localStorage.setItem("pa_sso_token", token);
+      }
+      state.authUser = user;
+      renderSSOUserState();
+      showMainApp();
+      toast(`Signed in as ${user.name || user.email}`);
+      connect().catch(() => {});
+    } else if (event.data && event.data.type === "SSO_AUTH_ERROR") {
+      const err = event.data.error || "Authentication failed.";
+      if (el.loginErrorMsg) {
+        el.loginErrorMsg.textContent = err;
+        el.loginErrorMsg.hidden = false;
+      }
+      toast(err);
+    }
+  });
+
+  async function ssoLogout() {
+    const baseUrl = currentBaseUrl();
+    const token = state.ssoToken || localStorage.getItem("pa_sso_token");
+
+    // Immediately reset state, credentials and transition UI
+    state.ssoToken = null;
+    state.authUser = null;
+    localStorage.removeItem("pa_sso_token");
+    sessionStorage.clear();
+    if (el.loginPasswordInput) el.loginPasswordInput.value = "";
+    if (el.loginEmailInput) el.loginEmailInput.value = "";
+    if (el.loginErrorMsg) {
+      el.loginErrorMsg.textContent = "";
+      el.loginErrorMsg.hidden = true;
+    }
+    renderSSOUserState();
+    showLoginScreen();
+    toast("Signed out successfully.");
+
+    // Revoke token on server asynchronously without blocking UI
+    if (baseUrl && token) {
+      try {
+        fetch(`${baseUrl}/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+        }).catch(() => {});
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  async function exportUserData() {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      toast("Not connected.");
+      return;
+    }
+    try {
+      const res = await fetch(`${baseUrl}/auth/user/export`, {
+        method: "GET",
+        headers: { ...authHeaders() },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const filename = `process-architect-user-data-${new Date().toISOString().slice(0, 10)}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast("Data export downloaded.");
+    } catch (err) {
+      toast(`Export failed: ${err.message}`);
+    }
+  }
+
+  async function deleteUserData() {
+    if (!confirm("Are you sure you want to permanently delete your account and all associated data under GDPR Article 17 / CCPA? This cannot be undone.")) {
+      return;
+    }
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) return;
+    try {
+      const res = await fetch(`${baseUrl}/auth/user/data`, {
+        method: "DELETE",
+        headers: { ...authHeaders() },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      clearLocalChatState();
+      state.ssoToken = null;
+      state.authUser = null;
+      localStorage.removeItem("pa_sso_token");
+      renderSSOUserState();
+      showLoginScreen();
+      toast("Your account and all associated data have been permanently deleted.");
+    } catch (err) {
+      toast(`Deletion failed: ${err.message}`);
+    }
+  }
+
+  async function showComplianceDoc(type) {
+    const baseUrl = currentBaseUrl();
+    let title = "Legal & Compliance";
+    let endpoint = "";
+    if (type === "privacy") {
+      title = "Privacy Policy (GDPR & CCPA)";
+      endpoint = "/auth/compliance/privacy-policy";
+    } else if (type === "terms") {
+      title = "Terms of Service";
+      endpoint = "/auth/compliance/terms";
+    } else if (type === "notice") {
+      title = "Notice at Collection";
+      endpoint = "/auth/compliance/notice";
+    }
+
+    if (el.complianceModalTitle) el.complianceModalTitle.textContent = title;
+    if (el.complianceModalBody) el.complianceModalBody.innerHTML = "<p>Loading document…</p>";
+    if (el.complianceModal) el.complianceModal.hidden = false;
+
+    if (type === "cookies") {
+      title = "Cookie & Storage Preferences";
+      if (el.complianceModalTitle) el.complianceModalTitle.textContent = title;
+      if (el.complianceModalBody) {
+        el.complianceModalBody.innerHTML = `
+          <p>Manage your cookie and storage preferences in compliance with the EU ePrivacy Directive and GDPR Article 6:</p>
+          <div style="margin: 16px 0; padding: 14px; background: rgba(255,255,255,0.04); border-radius: 8px;">
+            <h4 style="margin: 0 0 4px;">Strictly Necessary Cookies (Required)</h4>
+            <p style="font-size: 12.5px; color: var(--text-muted); margin: 0 0 10px;">Essential for authentication sessions, anti-CSRF state tokens, and session directory isolation. Cannot be disabled.</p>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+              <input type="checkbox" checked disabled> Always Active
+            </label>
+          </div>
+          <div style="margin: 16px 0; padding: 14px; background: rgba(255,255,255,0.04); border-radius: 8px;">
+            <h4 style="margin: 0 0 4px;">Preference & Functional Storage (Optional)</h4>
+            <p style="font-size: 12.5px; color: var(--text-muted); margin: 0 0 10px;">Remembers your theme (light/dark mode) and voice playback preferences locally in your browser.</p>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="prefStorageCheckbox" checked> Enable Preference Storage
+            </label>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    try {
+      if (baseUrl && endpoint) {
+        const res = await fetch(`${baseUrl}${endpoint}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.markdown && el.complianceModalBody) {
+            el.complianceModalBody.innerHTML = renderMarkdown(data.markdown);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fallback
+    }
+
+    if (el.complianceModalBody) {
+      el.complianceModalBody.innerHTML = `<p>Document not available. Please verify backend connection.</p>`;
+    }
+  }
+
+  function checkCookieConsent() {
+    const consent = localStorage.getItem("pa_cookie_consent");
+    if (!consent && el.cookieConsentBanner) {
+      el.cookieConsentBanner.hidden = false;
+    }
+  }
+
+  function setCookieConsent(type) {
+    localStorage.setItem("pa_cookie_consent", JSON.stringify({
+      level: type,
+      timestamp: new Date().toISOString(),
+    }));
+    if (el.cookieConsentBanner) {
+      el.cookieConsentBanner.hidden = true;
+    }
+    toast(`Cookie preferences saved (${type === "all" ? "Accept All" : "Strictly Necessary"}).`);
+  }
+
+  // Wire SSO & Compliance event listeners
+  if (el.loginBtnGoogle) el.loginBtnGoogle.addEventListener("click", () => startSSOFlow("google"));
+  if (el.loginBtnGitHub) el.loginBtnGitHub.addEventListener("click", () => startSSOFlow("github"));
+  if (el.loginBtnMicrosoft) el.loginBtnMicrosoft.addEventListener("click", () => startSSOFlow("microsoft"));
+  if (el.loginBtnOutlook) el.loginBtnOutlook.addEventListener("click", () => startSSOFlow("outlook"));
+
+  if (el.loginTermsLink) el.loginTermsLink.addEventListener("click", (e) => { e.preventDefault(); showComplianceDoc("terms"); });
+  if (el.loginPrivacyLink) el.loginPrivacyLink.addEventListener("click", (e) => { e.preventDefault(); showComplianceDoc("privacy"); });
+  if (el.loginCookiePrefBtn) el.loginCookiePrefBtn.addEventListener("click", () => showComplianceDoc("cookies"));
+  if (el.loginNoticeAtCollBtn) el.loginNoticeAtCollBtn.addEventListener("click", () => showComplianceDoc("notice"));
+
+  if (el.ssoProfilePill) {
+    el.ssoProfilePill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (el.ssoUserDropdown) el.ssoUserDropdown.hidden = !el.ssoUserDropdown.hidden;
+    });
+  }
+
+  document.addEventListener("click", () => {
+    if (el.ssoUserDropdown && !el.ssoUserDropdown.hidden) {
+      el.ssoUserDropdown.hidden = true;
+    }
+  });
+
+  if (el.ssoExportDataBtn) el.ssoExportDataBtn.addEventListener("click", exportUserData);
+  if (el.ssoCookiePrefBtn) el.ssoCookiePrefBtn.addEventListener("click", () => showComplianceDoc("cookies"));
+  if (el.ssoPrivacyBtn) el.ssoPrivacyBtn.addEventListener("click", () => showComplianceDoc("privacy"));
+  if (el.ssoDeleteDataBtn) el.ssoDeleteDataBtn.addEventListener("click", deleteUserData);
+  if (el.ssoSignOutBtn) el.ssoSignOutBtn.addEventListener("click", ssoLogout);
+  if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.addEventListener("click", ssoLogout);
+
+  if (el.cookieAcceptAllBtn) el.cookieAcceptAllBtn.addEventListener("click", () => setCookieConsent("all"));
+  if (el.cookieRejectOptionalBtn) el.cookieRejectOptionalBtn.addEventListener("click", () => setCookieConsent("necessary"));
+  if (el.cookieManageBtn) el.cookieManageBtn.addEventListener("click", () => showComplianceDoc("cookies"));
+
+  if (el.complianceModalCloseBtn) el.complianceModalCloseBtn.addEventListener("click", () => { if (el.complianceModal) el.complianceModal.hidden = true; });
+  if (el.complianceModalDismissBtn) el.complianceModalDismissBtn.addEventListener("click", () => { if (el.complianceModal) el.complianceModal.hidden = true; });
+
+  // ---------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------
-  function init() {
+  async function init() {
     applyTheme();
     applyVoiceSettings();
     el.faviconLink.setAttribute("href", faviconDataUri(false));
@@ -5894,9 +6331,16 @@
       });
     }
 
-    el.baseUrlInput.value = state.baseUrl || PRESETS.adk.baseUrl;
+    const detected = detectInitialOrigin();
+    const effectivePreset = state.preset && (PRESETS[state.preset] || state.preset === "custom")
+      ? state.preset
+      : detected.preset;
+    const effectiveBaseUrl = state.baseUrl || detected.baseUrl;
+
+    el.baseUrlInput.value = effectiveBaseUrl;
     el.apiKeyInput.value = state.apiKey || "";
-    setPreset(state.preset && (PRESETS[state.preset] || state.preset === "custom") ? state.preset : "adk");
+    setPreset(effectivePreset);
+
     if (state.sessionId) {
       restoreSessionOnLoad(state.sessionId);
     } else {
@@ -5907,8 +6351,46 @@
     renderNetwork();
     renderUsageChart();
     updateLogsSessionDisplay();
-    el.messageInput.focus();
+
+    // Check for token or error in URL query (OAuth redirect callback)
+    let hasUrlToken = false;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("token");
+      const ssoError = urlParams.get("sso_error");
+      if (token) {
+        hasUrlToken = true;
+        state.ssoToken = token;
+        localStorage.setItem("pa_sso_token", token);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (ssoError) {
+        if (el.loginErrorMsg) {
+          el.loginErrorMsg.textContent = ssoError;
+          el.loginErrorMsg.hidden = false;
+        }
+        toast(ssoError);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+
+    // Determine initial view: verify active SSO session first
+    const hasToken = hasUrlToken || Boolean(state.ssoToken) || Boolean(localStorage.getItem("pa_sso_token"));
+    if (hasToken) {
+      const isAuthenticated = await checkSSOSession();
+      if (isAuthenticated) {
+        showMainApp();
+        connect().catch(() => {});
+        checkCookieConsent();
+        return;
+      }
+    }
+
+    // Default to gated full-page login screen if not authenticated
+    showLoginScreen();
+    checkCookieConsent();
   }
 
-  init();
+  init().catch(console.error);
 })();
