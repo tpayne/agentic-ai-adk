@@ -1,6 +1,8 @@
 """Tests for SSO and regulatory compliance REST endpoints in ProcessArchitect web service."""
 
 import json
+import urllib.parse
+
 import pytest
 
 import cli
@@ -44,7 +46,11 @@ def test_auth_login_configured_provider_redirect_and_cookies(client, monkeypatch
     data = resp.get_json()
     assert data["status"] == "ok"
     assert data["provider"] == "google"
-    assert "accounts.google.com" in data["auth_url"]
+    # CodeQL (py/incomplete-url-substring-sanitization): a plain substring
+    # check can't tell "https://accounts.google.com/..." apart from, say,
+    # "https://evil.example/?x=accounts.google.com" -- check the actual
+    # parsed host instead of a raw "in" match.
+    assert urllib.parse.urlparse(data["auth_url"]).hostname == "accounts.google.com"
     assert "client_id=test-google-client-id" in data["auth_url"]
 
     # Verify anti-CSRF state cookie and PKCE verifier cookie are set

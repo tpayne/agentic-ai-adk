@@ -107,7 +107,14 @@ class TestSSOSessionManager(unittest.TestCase):
     """Tests session creation, token retrieval, GDPR export, and erasure."""
 
     def setUp(self):
-        self.temp_file = tempfile.mktemp(suffix=".json")
+        # CodeQL (py/insecure-temporary-file): tempfile.mktemp() only
+        # returns a name -- the file doesn't exist yet, leaving a race
+        # window an attacker could exploit to create it first. mkstemp()
+        # atomically creates the file before returning; SSOSessionManager
+        # overwrites it on its own first save, so the open fd is closed
+        # immediately and unused.
+        fd, self.temp_file = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
         self.manager = SSOSessionManager(persistence_file=self.temp_file)
 
     def tearDown(self):

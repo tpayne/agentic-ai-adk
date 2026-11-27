@@ -2100,6 +2100,29 @@ def build_web_app(agent_name: str, https: bool = True):
         clear_cli_credentials,
     )
 
+    def _json_for_script(value) -> str:
+        """CONFIRMED AS A REAL BUG (CodeQL: reflected server-side XSS):
+        json.dumps() alone is not safe to embed inside an HTML <script>
+        block. It does not escape "<", ">", or "&" -- a value containing
+        the literal substring "</script>" (e.g. an OAuth error_description
+        query param, or the provider_id URL path segment, both attacker-
+        reachable before any real OAuth round-trip happens) would
+        prematurely close the surrounding script tag at the HTML PARSER
+        level, which looks for that literal byte sequence before any JS
+        ever runs -- turning whatever comes after it into real, browser-
+        parsed HTML/script. Escaping those three characters to their
+        \\uXXXX equivalents keeps the JSON valid (the JS engine decodes
+        them right back to the same characters) while making it
+        impossible for the embedded value to ever contain a literal
+        HTML-significant sequence.
+        """
+        return (
+            json.dumps(value)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+        )
+
     def _safe_client_return(raw: Optional[str]) -> str:
         """CONFIRMED AS A REAL BUG: ?redirect_uri was accepted verbatim from
         the request and later used, with no validation at all, as the
@@ -2186,8 +2209,8 @@ def build_web_app(agent_name: str, https: bool = True):
   <script>
     const errorData = {{
       type: "SSO_AUTH_ERROR",
-      error: {json.dumps(err_msg)},
-      provider: {json.dumps(pid)}
+      error: {_json_for_script(err_msg)},
+      provider: {_json_for_script(pid)}
     }};
     let handled = false;
     if (window.opener && !window.opener.closed) {{
@@ -2201,11 +2224,11 @@ def build_web_app(agent_name: str, https: bool = True):
     }}
     if (!handled) {{
       try {{
-        const dest = new URL({json.dumps(client_ret)}, window.location.href);
-        dest.searchParams.set("sso_error", {json.dumps(err_msg)});
+        const dest = new URL({_json_for_script(client_ret)}, window.location.href);
+        dest.searchParams.set("sso_error", {_json_for_script(err_msg)});
         window.location.href = dest.toString();
       }} catch (e) {{
-        window.location.href = {json.dumps(client_ret)};
+        window.location.href = {_json_for_script(client_ret)};
       }}
     }}
   </script>
@@ -2256,7 +2279,18 @@ def build_web_app(agent_name: str, https: bool = True):
             resp = make_response(redirect(auth_url))
 
         resp.set_cookie("sso_state", state, max_age=600, httponly=True, samesite="Lax", secure=https)
-        resp.set_cookie("sso_pkce_verifier", verifier, max_age=600, httponly=True, samesite="Lax", secure=https)
+        # CodeQL (py/clear-text-storage-sensitive-data) flags this as
+        # storing a password-like secret in clear text. Reviewed and
+        # accepted: this is RFC 7636's own standard PKCE flow -- the code
+        # verifier is a single-use, 600-second-TTL, cryptographically
+        # random value (generate_pkce_pair) that MUST travel with the
+        # browser from this redirect to the callback below so it can be
+        # presented to the token endpoint; there is no way to avoid
+        # holding the raw value somewhere for that round trip. The cookie
+        # carries httponly (JS/XSS can't read it), secure (HTTPS-only
+        # transport when enabled), and samesite=Lax (not sent cross-site)
+        # -- the three protections this generic heuristic doesn't model.
+        resp.set_cookie("sso_pkce_verifier", verifier, max_age=600, httponly=True, samesite="Lax", secure=https)  # lgtm[py/clear-text-storage-sensitive-data]
         if client_return:
             resp.set_cookie("sso_client_return", client_return, max_age=600, httponly=True, samesite="Lax", secure=https)
         return resp
@@ -2328,8 +2362,8 @@ def build_web_app(agent_name: str, https: bool = True):
   <script>
     const errorData = {{
       type: "SSO_AUTH_ERROR",
-      error: {json.dumps(err_msg)},
-      provider: {json.dumps(provider_id)}
+      error: {_json_for_script(err_msg)},
+      provider: {_json_for_script(provider_id)}
     }};
     let handled = false;
     if (window.opener && !window.opener.closed) {{
@@ -2343,11 +2377,11 @@ def build_web_app(agent_name: str, https: bool = True):
     }}
     if (!handled) {{
       try {{
-        const dest = new URL({json.dumps(client_return)}, window.location.href);
-        dest.searchParams.set("sso_error", {json.dumps(err_msg)});
+        const dest = new URL({_json_for_script(client_return)}, window.location.href);
+        dest.searchParams.set("sso_error", {_json_for_script(err_msg)});
         window.location.href = dest.toString();
       }} catch (e) {{
-        window.location.href = {json.dumps(client_return)};
+        window.location.href = {_json_for_script(client_return)};
       }}
     }}
   </script>
@@ -2424,8 +2458,8 @@ def build_web_app(agent_name: str, https: bool = True):
   <script>
     const authData = {{
       type: "SSO_AUTH_SUCCESS",
-      token: {json.dumps(token)},
-      user: {json.dumps(profile)}
+      token: {_json_for_script(token)},
+      user: {_json_for_script(profile)}
     }};
     let handled = false;
     if (window.opener && !window.opener.closed) {{
@@ -2439,11 +2473,11 @@ def build_web_app(agent_name: str, https: bool = True):
     }}
     if (!handled) {{
       try {{
-        const dest = new URL({json.dumps(client_return)}, window.location.href);
-        dest.searchParams.set("token", {json.dumps(token)});
+        const dest = new URL({_json_for_script(client_return)}, window.location.href);
+        dest.searchParams.set("token", {_json_for_script(token)});
         window.location.href = dest.toString();
       }} catch (e) {{
-        window.location.href = {json.dumps(client_return)};
+        window.location.href = {_json_for_script(client_return)};
       }}
     }}
   </script>
