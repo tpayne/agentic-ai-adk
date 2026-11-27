@@ -2180,9 +2180,12 @@ def build_web_app(agent_name: str, https: bool = True):
 
     @web_app.route("/auth/providers", methods=["GET"])
     def auth_providers():
+        meta = get_providers_metadata()
+        sso_enabled = any(bool(p.get("configured")) for p in meta)
         return jsonify({
             "status": "ok",
-            "providers": get_providers_metadata(),
+            "sso_enabled": sso_enabled,
+            "providers": meta,
             "cookie_categories": COOKIE_CATEGORIES,
         })
 

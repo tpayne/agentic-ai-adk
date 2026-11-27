@@ -312,7 +312,6 @@
     ssoPrivacyBtn: document.getElementById("ssoPrivacyBtn"),
     ssoDeleteDataBtn: document.getElementById("ssoDeleteDataBtn"),
     ssoSignOutBtn: document.getElementById("ssoSignOutBtn"),
-    sidebarLogoutBtn: document.getElementById("sidebarLogoutBtn"),
 
     cookieConsentBanner: document.getElementById("cookieConsentBanner"),
     cookieAcceptAllBtn: document.getElementById("cookieAcceptAllBtn"),
@@ -5981,9 +5980,8 @@
 
   function renderSSOUserState() {
     const user = state.authUser;
-    if (user) {
+    if (user && state.ssoEnabled !== false) {
       if (el.ssoUserProfile) el.ssoUserProfile.hidden = false;
-      if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.hidden = false;
       const displayName = user.name || user.username || user.email || "User";
       const displayEmail = (user.email && user.email !== displayName) ? user.email : (user.username || "");
       if (el.ssoUserName) el.ssoUserName.textContent = displayName;
@@ -5999,8 +5997,50 @@
     } else {
       if (el.ssoUserProfile) el.ssoUserProfile.hidden = true;
       if (el.ssoUserDropdown) el.ssoUserDropdown.hidden = true;
-      if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.hidden = true;
     }
+  }
+
+  async function checkSSOProviders() {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      state.ssoEnabled = false;
+      return false;
+    }
+    try {
+      const res = await fetch(`${baseUrl}/auth/providers`, {
+        method: "GET",
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const providers = data.providers || [];
+        const ssoEnabled = Boolean(data.sso_enabled || providers.some((p) => p.configured));
+        state.ssoEnabled = ssoEnabled;
+        state.ssoProviders = providers;
+
+        // In login screen, selectively show only providers that are actually configured
+        const providerBtns = [
+          { id: "google", el: el.loginBtnGoogle },
+          { id: "github", el: el.loginBtnGitHub },
+          { id: "microsoft", el: el.loginBtnMicrosoft },
+          { id: "outlook", el: el.loginBtnOutlook },
+        ];
+        for (const item of providerBtns) {
+          if (item.el) {
+            const p = providers.find((x) => x.id === item.id);
+            const isConfigured = Boolean(p && p.configured);
+            item.el.hidden = !isConfigured;
+            item.el.style.display = isConfigured ? "" : "none";
+          }
+        }
+
+        return ssoEnabled;
+      }
+    } catch (err) {
+      console.warn("Failed to query SSO providers:", err);
+    }
+    state.ssoEnabled = false;
+    return false;
   }
 
   async function checkSSOSession() {
@@ -6125,7 +6165,11 @@
       el.loginErrorMsg.hidden = true;
     }
     renderSSOUserState();
-    showLoginScreen();
+    if (state.ssoEnabled) {
+      showLoginScreen();
+    } else {
+      showMainApp();
+    }
     toast("Signed out successfully.");
 
     // Revoke token on server asynchronously without blocking UI
@@ -6309,7 +6353,6 @@
   if (el.ssoPrivacyBtn) el.ssoPrivacyBtn.addEventListener("click", () => showComplianceDoc("privacy"));
   if (el.ssoDeleteDataBtn) el.ssoDeleteDataBtn.addEventListener("click", deleteUserData);
   if (el.ssoSignOutBtn) el.ssoSignOutBtn.addEventListener("click", ssoLogout);
-  if (el.sidebarLogoutBtn) el.sidebarLogoutBtn.addEventListener("click", ssoLogout);
 
   if (el.cookieAcceptAllBtn) el.cookieAcceptAllBtn.addEventListener("click", () => setCookieConsent("all"));
   if (el.cookieRejectOptionalBtn) el.cookieRejectOptionalBtn.addEventListener("click", () => setCookieConsent("necessary"));
@@ -6375,6 +6418,19 @@
       // Ignore URL parsing errors
     }
 
+    // Check if the server has any OAuth / SSO providers configured
+    const ssoEnabled = await checkSSOProviders();
+    if (!ssoEnabled) {
+      // Server has no OAuth settings configured in config or environment.
+      // Bypass the login screen entirely and show the main app directly.
+      state.authUser = null;
+      renderSSOUserState();
+      showMainApp();
+      connect().catch(() => {});
+      checkCookieConsent();
+      return;
+    }
+
     // Determine initial view: verify active SSO session first
     const hasToken = hasUrlToken || Boolean(state.ssoToken) || Boolean(localStorage.getItem("pa_sso_token"));
     if (hasToken) {
@@ -6387,7 +6443,7 @@
       }
     }
 
-    // Default to gated full-page login screen if not authenticated
+    // Default to gated full-page login screen if SSO is enabled but user is not authenticated
     showLoginScreen();
     checkCookieConsent();
   }

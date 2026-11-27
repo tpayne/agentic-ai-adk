@@ -20,6 +20,8 @@ def test_get_auth_providers(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["status"] == "ok"
+    assert "sso_enabled" in data
+    assert isinstance(data["sso_enabled"], bool)
     provider_ids = [p["id"] for p in data["providers"]]
     assert "google" in provider_ids
     assert "github" in provider_ids

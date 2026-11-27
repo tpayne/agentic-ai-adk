@@ -2655,25 +2655,6 @@ input[type="range"]:disabled {
   background: rgba(239, 68, 68, 0.1);
 }
 
-.sidebar-logout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
-  color: var(--danger, #ef4444) !important;
-  border-color: rgba(239, 68, 68, 0.3) !important;
-}
-
-.sidebar-logout-btn:hover {
-  background: rgba(239, 68, 68, 0.1) !important;
-  border-color: var(--danger, #ef4444) !important;
-}
-
-.sidebar-logout-btn[hidden] {
-  display: none !important;
-}
-
 /* Ensure strict app gating: hidden elements are completely non-accessible */
 .app[hidden] {
   display: none !important;
@@ -2825,6 +2806,10 @@ input[type="range"]:disabled {
   border: 1px solid var(--border);
   transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease;
   user-select: none;
+}
+
+.sso-btn[hidden] {
+  display: none !important;
 }
 
 .sso-btn:hover {
