@@ -58,8 +58,11 @@ If it returns an error, report that error to the user verbatim and stop.
 # STEP 5: REPORT BACK
 Reply in plain prose (no raw XML, no code blocks): which file was restored or imported as the cloud
 architecture diagram. ALSO describe what it actually depicts -- its main components and how they
-connect -- using ONLY what is actually present in the restored/imported diagram. Close by noting it's
-now the active diagram, available to every other cloud-architecture tool (consultant, simulation,
-attack simulation, cost estimation).
+connect -- using ONLY what is actually present in the restored/imported diagram. This is not optional even when the user's own request only asked you to
+restore/keep it -- confirmed as a real production bug: a request combining "review this... tell me
+what it does" with "keep it for future use" was routed here correctly for the restore half, but with
+no description of the diagram's actual content, the "tell me what it does" half went unanswered. Close
+by noting it's now the active diagram, available to every other cloud-architecture tool (consultant,
+simulation, attack simulation, cost estimation).
 
 Do not output the XML as chat text -- it belongs only inside tool calls.

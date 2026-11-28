@@ -1,0 +1,48 @@
+"""Always-local re-export -- NEVER redirects to MCP mode: SSO authentication
+and regulatory compliance management are local web server/CLI operations."""
+
+from process_toolkit.sso import (
+    COOKIE_CATEGORIES,
+    MINIMAL_SCOPES,
+    BaseSSOProvider,
+    GitHubProvider,
+    GoogleProvider,
+    MicrosoftProvider,
+    OutlookProvider,
+    SSOSessionManager,
+    clear_cli_credentials,
+    generate_oauth_state,
+    generate_pkce_pair,
+    get_configured_providers,
+    get_notice_at_collection,
+    get_privacy_policy_text,
+    get_providers_metadata,
+    get_sso_session_manager,
+    get_terms_of_service_text,
+    load_cli_credentials,
+    perform_cli_sso_login,
+    save_cli_credentials,
+)
+
+__all__ = [
+    "COOKIE_CATEGORIES",
+    "MINIMAL_SCOPES",
+    "BaseSSOProvider",
+    "GitHubProvider",
+    "GoogleProvider",
+    "MicrosoftProvider",
+    "OutlookProvider",
+    "SSOSessionManager",
+    "clear_cli_credentials",
+    "generate_oauth_state",
+    "generate_pkce_pair",
+    "get_configured_providers",
+    "get_notice_at_collection",
+    "get_privacy_policy_text",
+    "get_providers_metadata",
+    "get_sso_session_manager",
+    "get_terms_of_service_text",
+    "load_cli_credentials",
+    "perform_cli_sso_login",
+    "save_cli_credentials",
+]
