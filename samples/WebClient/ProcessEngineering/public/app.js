@@ -183,6 +183,12 @@
     chatAutoArrangeBtn: document.getElementById("chatAutoArrangeBtn"),
 
     tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
+    tabVisibilityMenu: document.getElementById("tabVisibilityMenu"),
+    tabVisibilityBtn: document.getElementById("tabVisibilityBtn"),
+    tabVisibilityLabel: document.getElementById("tabVisibilityLabel"),
+    tabVisibilityDropdown: document.getElementById("tabVisibilityDropdown"),
+    tabShowAllBtn: document.getElementById("tabShowAllBtn"),
+    tabChatOnlyBtn: document.getElementById("tabChatOnlyBtn"),
     chatTabPanel: document.getElementById("chatTabPanel"),
     networkTabPanel: document.getElementById("networkTabPanel"),
     networkTabBadge: document.getElementById("networkTabBadge"),
@@ -361,6 +367,8 @@
     voiceVolume: 100,
     ssoToken: localStorage.getItem("pa_sso_token") || null,
     authUser: null,
+    tabVisibility: null,
+    activeTab: "chat",
     ...loadState(),
     isSending: false,
   };
@@ -1515,6 +1523,7 @@
   // Tabs
   // ---------------------------------------------------------------
   function switchTab(name) {
+    state.activeTab = name;
     el.tabBtns.forEach((btn) => {
       const isActive = btn.dataset.tab === name;
       btn.classList.toggle("active", isActive);
@@ -1570,6 +1579,100 @@
   }
 
   el.tabBtns.forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+
+  // ---------------------------------------------------------------
+  // Tab Visibility (show/hide tabs apart from main chat tab)
+  // ---------------------------------------------------------------
+  const ALL_OTHER_TABS = ["network", "artifacts", "cloudarch", "usage", "logs"];
+
+  function loadTabVisibility() {
+    try {
+      const raw = localStorage.getItem("pa_tab_visibility");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+    const defaults = {};
+    ALL_OTHER_TABS.forEach((tab) => { defaults[tab] = true; });
+    return defaults;
+  }
+
+  function saveTabVisibility(visibility) {
+    try {
+      localStorage.setItem("pa_tab_visibility", JSON.stringify(visibility));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  function updateTabVisibilityUI() {
+    if (!state.tabVisibility) {
+      state.tabVisibility = loadTabVisibility();
+    }
+    const visibility = state.tabVisibility;
+    let visibleCount = 0;
+
+    ALL_OTHER_TABS.forEach((tabId) => {
+      const isVisible = visibility[tabId] !== false;
+      if (isVisible) visibleCount += 1;
+
+      const btn = el.tabBtns.find((b) => b.dataset.tab === tabId);
+      if (btn) {
+        btn.hidden = !isVisible;
+        btn.style.display = isVisible ? "" : "none";
+      }
+
+      const chk = el.tabVisibilityDropdown?.querySelector(`input[data-tab-target="${tabId}"]`);
+      if (chk) {
+        chk.checked = isVisible;
+      }
+    });
+
+    if (state.activeTab && state.activeTab !== "chat" && visibility[state.activeTab] === false) {
+      switchTab("chat");
+    }
+
+    if (el.tabVisibilityLabel) {
+      if (visibleCount === ALL_OTHER_TABS.length) {
+        el.tabVisibilityLabel.textContent = "Tabs: All";
+      } else if (visibleCount === 0) {
+        el.tabVisibilityLabel.textContent = "Tabs: Chat Only";
+      } else {
+        el.tabVisibilityLabel.textContent = `Tabs: ${visibleCount + 1}/${ALL_OTHER_TABS.length + 1}`;
+      }
+    }
+  }
+
+  function setAllOtherTabsVisibility(show) {
+    if (!state.tabVisibility) {
+      state.tabVisibility = loadTabVisibility();
+    }
+    ALL_OTHER_TABS.forEach((tabId) => {
+      state.tabVisibility[tabId] = show;
+    });
+    saveTabVisibility(state.tabVisibility);
+    updateTabVisibilityUI();
+  }
+
+  function toggleTabVisibility(tabId, show) {
+    if (!state.tabVisibility) {
+      state.tabVisibility = loadTabVisibility();
+    }
+    state.tabVisibility[tabId] = show;
+    saveTabVisibility(state.tabVisibility);
+    updateTabVisibilityUI();
+  }
+
+  function initTabVisibility() {
+    state.tabVisibility = loadTabVisibility();
+    state.activeTab = state.activeTab || "chat";
+    updateTabVisibilityUI();
+  }
 
   // ---------------------------------------------------------------
   // Agent Network -- built entirely from "progress" SSE events (the only
@@ -5971,6 +6074,7 @@
       el.app.hidden = false;
       el.app.removeAttribute("aria-hidden");
     }
+    updateTabVisibilityUI();
     renderSSOUserState();
     renderNetwork();
     renderUsageChart();
@@ -6342,9 +6446,69 @@
     });
   }
 
+  // Wire Tab Visibility dropdown listeners
+  if (el.tabVisibilityBtn) {
+    el.tabVisibilityBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!el.tabVisibilityDropdown) return;
+      const isHidden = el.tabVisibilityDropdown.hidden;
+      el.tabVisibilityDropdown.hidden = !isHidden;
+      el.tabVisibilityBtn.setAttribute("aria-expanded", String(!isHidden));
+    });
+  }
+
+  if (el.tabShowAllBtn) {
+    el.tabShowAllBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setAllOtherTabsVisibility(true);
+      toast("Showing all tabs");
+    });
+  }
+
+  if (el.tabChatOnlyBtn) {
+    el.tabChatOnlyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setAllOtherTabsVisibility(false);
+      toast("Showing main chat tab only");
+    });
+  }
+
+  if (el.tabVisibilityDropdown) {
+    el.tabVisibilityDropdown.addEventListener("change", (e) => {
+      const target = e.target;
+      if (target && target.dataset && target.dataset.tabTarget) {
+        toggleTabVisibility(target.dataset.tabTarget, target.checked);
+      }
+    });
+    el.tabVisibilityDropdown.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+  }
+
   document.addEventListener("click", () => {
     if (el.ssoUserDropdown && !el.ssoUserDropdown.hidden) {
       el.ssoUserDropdown.hidden = true;
+    }
+    if (el.tabVisibilityDropdown && !el.tabVisibilityDropdown.hidden) {
+      el.tabVisibilityDropdown.hidden = true;
+      if (el.tabVisibilityBtn) {
+        el.tabVisibilityBtn.setAttribute("aria-expanded", "false");
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (el.tabVisibilityDropdown && !el.tabVisibilityDropdown.hidden) {
+        el.tabVisibilityDropdown.hidden = true;
+        if (el.tabVisibilityBtn) {
+          el.tabVisibilityBtn.setAttribute("aria-expanded", "false");
+          el.tabVisibilityBtn.focus();
+        }
+      }
+      if (el.ssoUserDropdown && !el.ssoUserDropdown.hidden) {
+        el.ssoUserDropdown.hidden = true;
+      }
     }
   });
 
@@ -6365,6 +6529,7 @@
   // Init
   // ---------------------------------------------------------------
   async function init() {
+    initTabVisibility();
     applyTheme();
     applyVoiceSettings();
     el.faviconLink.setAttribute("href", faviconDataUri(false));

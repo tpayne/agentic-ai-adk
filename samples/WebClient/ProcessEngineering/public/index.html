@@ -251,6 +251,54 @@
         Server Logs
         <span class="tab-badge" id="logsTabBadge" hidden>0</span>
       </button>
+
+      <div class="tab-visibility-menu" id="tabVisibilityMenu">
+        <button type="button" class="tab-visibility-btn" id="tabVisibilityBtn" aria-haspopup="true" aria-expanded="false" title="Customize visible tabs">
+          <svg class="tab-visibility-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+            <circle cx="8" cy="8" r="2.5"/>
+          </svg>
+          <span id="tabVisibilityLabel">Tabs: All</span>
+          <svg class="chevron-icon" viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="tab-visibility-dropdown" id="tabVisibilityDropdown" hidden>
+          <div class="tab-dropdown-header">Tab Visibility</div>
+          <button type="button" class="tab-dropdown-action" id="tabShowAllBtn">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>
+            <span>Show All Tabs</span>
+          </button>
+          <button type="button" class="tab-dropdown-action" id="tabChatOnlyBtn">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 4.5l-9 9m0-9l9 9"/></svg>
+            <span>Hide Other Tabs (Chat Only)</span>
+          </button>
+          <div class="tab-dropdown-divider"></div>
+          <div class="tab-dropdown-subheading">Visible Tabs</div>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" checked disabled>
+            <span>Chat (Always visible)</span>
+          </label>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" data-tab-target="network" checked>
+            <span>Agent Network</span>
+          </label>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" data-tab-target="artifacts" checked>
+            <span>Artefact Browser</span>
+          </label>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" data-tab-target="cloudarch" checked>
+            <span>Diagrams</span>
+          </label>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" data-tab-target="usage" checked>
+            <span>Token Usage</span>
+          </label>
+          <label class="tab-dropdown-checkbox-item">
+            <input type="checkbox" data-tab-target="logs" checked>
+            <span>Server Logs</span>
+          </label>
+        </div>
+      </div>
     </nav>
 
     <div class="tab-panel" id="chatTabPanel" role="tabpanel">

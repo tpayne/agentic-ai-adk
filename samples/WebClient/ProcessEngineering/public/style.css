@@ -610,11 +610,14 @@ input[type="range"]:disabled {
 
 .tabbar {
   display: flex;
+  align-items: center;
   gap: 4px;
   padding: 0 22px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .tab-btn {
@@ -631,6 +634,10 @@ input[type="range"]:disabled {
   font-weight: 600;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab-btn[hidden] {
+  display: none !important;
 }
 
 .tab-btn:hover { color: var(--text); }
@@ -662,6 +669,137 @@ input[type="range"]:disabled {
 }
 
 .tab-panel[hidden] { display: none; }
+
+/* ---------- Tab Visibility Pulldown ---------- */
+
+.tab-visibility-menu {
+  position: relative;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.tab-visibility-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tab-visibility-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tab-visibility-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.tab-visibility-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  padding: 8px 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-visibility-dropdown[hidden] {
+  display: none;
+}
+
+.tab-dropdown-header {
+  padding: 4px 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.tab-dropdown-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.tab-dropdown-action:hover {
+  background: var(--bg-surface);
+  color: var(--accent);
+}
+
+.tab-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+.tab-dropdown-subheading {
+  padding: 4px 14px;
+  font-size: 10.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.tab-dropdown-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.tab-dropdown-checkbox-item:hover {
+  background: var(--bg-surface);
+}
+
+.tab-dropdown-checkbox-item input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.tab-dropdown-checkbox-item input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 
 /* ---------- Agent network ---------- */
 
