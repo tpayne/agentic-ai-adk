@@ -1796,6 +1796,9 @@ def build_web_app(agent_name: str, https: bool = True):
             response.headers["Vary"] = "Origin"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
 
     @web_app.before_request
@@ -2216,9 +2219,14 @@ def build_web_app(agent_name: str, https: bool = True):
       provider: {_json_for_script(pid)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_ret)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(errorData, "*");
+        window.opener.postMessage(errorData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 400);
       }} catch (e) {{
@@ -2307,8 +2315,8 @@ def build_web_app(agent_name: str, https: bool = True):
         data = request.get_json(silent=True) or {}
         provider_id = (data.get("provider") or "github").lower()
         token_str = (data.get("token") or "").strip()
-        if not token_str:
-            return jsonify({"status": "error", "error": "Missing token"}), 400
+        if not token_str or len(token_str) > 4096 or any(c in token_str for c in "\r\n\0"):
+            return jsonify({"status": "error", "error": "Invalid token"}), 400
 
         providers = get_configured_providers()
         provider = providers.get(provider_id)
@@ -2369,9 +2377,14 @@ def build_web_app(agent_name: str, https: bool = True):
       provider: {_json_for_script(provider_id)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_return)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(errorData, "*");
+        window.opener.postMessage(errorData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 400);
       }} catch (e) {{
@@ -2465,9 +2478,14 @@ def build_web_app(agent_name: str, https: bool = True):
       user: {_json_for_script(profile)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_return)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(authData, "*");
+        window.opener.postMessage(authData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 300);
       }} catch (e) {{

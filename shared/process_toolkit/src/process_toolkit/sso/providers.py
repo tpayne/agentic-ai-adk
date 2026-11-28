@@ -17,6 +17,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import urllib.parse
 import urllib.request
@@ -141,10 +142,11 @@ class BaseSSOProvider:
 
     def fetch_user_profile(self, access_token: str) -> Dict[str, Any]:
         """Fetches the user's standardized profile from the provider's userinfo API."""
+        clean_token = re.sub(r"[\r\n\0]", "", str(access_token)).strip()
         req = urllib.request.Request(
             self.userinfo_url,
             headers={
-                "Authorization": f"Bearer {access_token}",
+                "Authorization": f"Bearer {clean_token}",
                 "Accept": "application/json",
                 "User-Agent": "ProcessArchitect-SSO/1.0",
             },
@@ -201,10 +203,11 @@ class GitHubProvider(BaseSSOProvider):
 
         # If primary email is hidden, query /user/emails
         if not base_profile.get("email"):
+            clean_token = re.sub(r"[\r\n\0]", "", str(access_token)).strip()
             emails_req = urllib.request.Request(
                 "https://api.github.com/user/emails",
                 headers={
-                    "Authorization": f"Bearer {access_token}",
+                    "Authorization": f"Bearer {clean_token}",
                     "Accept": "application/json",
                     "User-Agent": "ProcessArchitect-SSO/1.0",
                 },

@@ -544,9 +544,15 @@
   // already plain HTML straight out of the diagram XML, no markdown step
   // needed).
   function htmlToText(html) {
-    const scratch = document.createElement("div");
-    scratch.innerHTML = html || "";
-    return scratch.textContent || "";
+    if (!html) return "";
+    try {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return doc.body.textContent || "";
+    } catch {
+      const scratch = document.createElement("div");
+      scratch.textContent = html;
+      return scratch.textContent || "";
+    }
   }
 
   // Renders `markdownText` through the same markdown-lite pipeline used
@@ -6229,7 +6235,17 @@
   }
 
   window.addEventListener("message", async (event) => {
-    if (ssoBackendOrigin && event.origin !== ssoBackendOrigin && event.origin !== window.location.origin) {
+    const expectedBackendOrigin = ssoBackendOrigin || (() => {
+      try {
+        const base = currentBaseUrl();
+        return base ? new URL(base, window.location.href).origin : null;
+      } catch {
+        return null;
+      }
+    })();
+    const allowedOrigins = new Set([window.location.origin]);
+    if (expectedBackendOrigin) allowedOrigins.add(expectedBackendOrigin);
+    if (!allowedOrigins.has(event.origin)) {
       return;
     }
     if (event.data && event.data.type === "SSO_AUTH_SUCCESS") {
@@ -6396,7 +6412,7 @@
         if (res.ok) {
           const data = await res.json();
           if (data.markdown && el.complianceModalBody) {
-            el.complianceModalBody.innerHTML = renderMarkdown(data.markdown);
+            el.complianceModalBody.innerHTML = renderMarkdownLite(data.markdown);
             return;
           }
         }

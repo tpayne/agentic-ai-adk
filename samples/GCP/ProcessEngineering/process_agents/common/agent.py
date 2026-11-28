@@ -1407,6 +1407,9 @@ def build_web_app(https: bool = True):
             response.headers["Vary"] = "Origin"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
 
     @web_app.before_request
@@ -1891,9 +1894,14 @@ def build_web_app(https: bool = True):
       provider: {_json_for_script(pid)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_ret)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(errorData, "*");
+        window.opener.postMessage(errorData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 400);
       }} catch (e) {{
@@ -1982,8 +1990,8 @@ def build_web_app(https: bool = True):
         data = request.get_json(silent=True) or {}
         provider_id = (data.get("provider") or "github").lower()
         token_str = (data.get("token") or "").strip()
-        if not token_str:
-            return jsonify({"status": "error", "error": "Missing token"}), 400
+        if not token_str or len(token_str) > 4096 or any(c in token_str for c in "\r\n\0"):
+            return jsonify({"status": "error", "error": "Invalid token"}), 400
 
         providers = get_configured_providers()
         provider = providers.get(provider_id)
@@ -2044,9 +2052,14 @@ def build_web_app(https: bool = True):
       provider: {_json_for_script(provider_id)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_return)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(errorData, "*");
+        window.opener.postMessage(errorData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 400);
       }} catch (e) {{
@@ -2140,9 +2153,14 @@ def build_web_app(https: bool = True):
       user: {_json_for_script(profile)}
     }};
     let handled = false;
+    let targetOrigin = window.location.origin;
+    try {{
+      const parsed = new URL({_json_for_script(client_return)}, window.location.href);
+      targetOrigin = parsed.origin;
+    }} catch (e) {{}}
     if (window.opener && !window.opener.closed) {{
       try {{
-        window.opener.postMessage(authData, "*");
+        window.opener.postMessage(authData, targetOrigin);
         handled = true;
         setTimeout(() => window.close(), 300);
       }} catch (e) {{
@@ -3367,12 +3385,82 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --detached, override the host it binds to (default: the \"host\" property, "
              "or 127.0.0.1)."
     )
+    parser.add_argument(
+        "--login", "--sso-login",
+        dest="sso_login", nargs="?", const="interactive", choices=["interactive", "google", "github", "microsoft", "outlook"],
+        help="Perform Single Sign-On (SSO) login via Google, GitHub, Microsoft, or Outlook to authenticate CLI sessions.",
+    )
+    parser.add_argument(
+        "--logout", "--sso-logout",
+        dest="sso_logout", action="store_true",
+        help="Log out of the active SSO session and remove stored local credentials.",
+    )
+    parser.add_argument(
+        "--whoami",
+        dest="whoami", action="store_true",
+        help="Display currently authenticated SSO user profile.",
+    )
     return parser
 
 
 async def run_cli():
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.sso_logout:
+        from process_interface.sso import clear_cli_credentials
+        if clear_cli_credentials():
+            display_text("Logged out successfully. Local SSO credentials removed.\n", type="info")
+        else:
+            display_text("No active SSO session credentials found.\n", type="info")
+        return
+
+    if args.whoami:
+        from process_interface.sso import load_cli_credentials
+        creds = load_cli_credentials()
+        if creds and creds.get("user"):
+            user = creds["user"]
+            display_text(
+                f"\nAuthenticated SSO User:\n"
+                f"  Name:     {user.get('name')}\n"
+                f"  Email:    {user.get('email')}\n"
+                f"  Provider: {str(user.get('provider')).upper()}\n"
+                f"  User ID:  {user.get('id')}\n"
+                f"  Token:    {creds.get('token', '')[:12]}...\n",
+                type="info",
+            )
+        else:
+            display_text("Not logged in. Use --login to authenticate via Google, GitHub, Microsoft, or Outlook.\n", type="info")
+        return
+
+    if args.sso_login:
+        from process_interface.sso import perform_cli_sso_login
+        provider = args.sso_login
+        if provider == "interactive":
+            print("\nSelect SSO Provider:")
+            print("  1) Google")
+            print("  2) GitHub")
+            print("  3) Microsoft")
+            print("  4) Outlook")
+            try:
+                choice = input("\nEnter choice (1-4, default 1): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                choice = "1"
+            mapping = {"1": "google", "2": "github", "3": "microsoft", "4": "outlook"}
+            provider = mapping.get(choice, "google")
+
+        res = perform_cli_sso_login(provider, open_browser_auto=True)
+        if res.get("status") == "ok":
+            user = res["user"]
+            display_text(
+                f"\nSuccessfully authenticated via {provider.upper()} SSO!\n"
+                f"Logged in as: {user.get('name')} <{user.get('email')}>\n"
+                f"Credentials saved to: {res.get('credentials_saved_to')}\n",
+                type="info",
+            )
+        else:
+            display_text(f"\nSSO Login failed: {res.get('error')}\n", type="error")
+        return
 
     if not args.detached and (args.http or args.port is not None or args.server is not None):
         parser.error("--http, --port, and --server only apply with -d/--detached.")
